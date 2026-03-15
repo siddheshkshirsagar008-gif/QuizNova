@@ -5,7 +5,7 @@ import {
   Play,
   Hash,
   Brain, 
-  Trophy, 
+  Trophy,
   History, 
   Moon, 
   Sun, 
@@ -28,19 +28,11 @@ import {
   Key,
   ExternalLink,
   X,
-  Lock,
-  User,
-  LogOut,
-  Mail,
-  Eye,
-  EyeOff,
-  Shield,
-  UserCircle,
   Cpu,
+  Shield,
   Palette,
   Bell,
   HelpCircle,
-  Save,
   Volume2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -64,7 +56,7 @@ import Markdown from 'react-markdown';
 
 // --- Types ---
 
-type AppState = 'login' | 'signup' | 'forgot_password' | 'reset_password' | 'landing' | 'uploading' | 'processing' | 'mode_selection' | 'quiz' | 'results' | 'history' | 'leaderboard' | 'tier_selection' | 'parsing_config';
+type AppState = 'landing' | 'uploading' | 'processing' | 'mode_selection' | 'quiz' | 'results' | 'history' | 'parsing_config';
 
 interface QuizResult {
   totalQuestions: number;
@@ -116,43 +108,30 @@ const SettingsModal = ({
   onClose, 
   currentKey, 
   onSave, 
-  onLogout,
-  user,
   isDark,
   accentColor,
   notifications,
   onToggleNotifications,
   exportData,
-  onUpgrade,
   history,
-  onUpdateAccentColor
+  onUpdateAccentColor,
 }: { 
   isOpen: boolean, 
   onClose: () => void, 
   currentKey: string, 
   onSave: (key: string) => void, 
-  onLogout: () => void,
-  user: { username: string, email: string, full_name?: string, bio?: string, api_key: string, tier: 'free' | 'pro', daily_usage: number } | null,
   isDark: boolean,
   accentColor: string,
   notifications: boolean,
   onToggleNotifications: () => void,
   exportData: () => void,
-  onUpgrade: () => void,
   history: any[],
-  onUpdateAccentColor: (color: string) => void
+  onUpdateAccentColor: (color: string) => void,
 }) => {
   const [key, setKey] = useState(currentKey);
   const [showKey, setShowKey] = useState(false);
-  const [activeTab, setActiveTab] = useState<'account' | 'api' | 'stats' | 'security'>('api');
+  const [activeTab, setActiveTab] = useState<'api' | 'stats' | 'general'>('api');
   
-  // Password Change State
-  const [showPasswordChange, setShowPasswordChange] = useState(false);
-  const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState('');
-  const [isChanging, setIsChanging] = useState(false);
-
   const [soundEnabled, setSoundEnabled] = useState(localStorage.getItem('sound_enabled') !== 'false');
 
   const toggleSound = () => {
@@ -167,59 +146,7 @@ const SettingsModal = ({
       ? Math.round(history.reduce((acc, curr) => acc + (curr.accuracy || 0), 0) / history.length) 
       : 0,
     totalQuestions: Array.isArray(history) ? history.reduce((acc, curr) => acc + (curr.attempted || 0), 0) : 0,
-    totalTime: Array.isArray(history) ? history.reduce((acc, curr) => acc + (curr.total_time || 0), 0) : 0
-  };
-
-  const handlePasswordChange = async () => {
-    const trimmedCurrent = passwords.current.trim();
-    const trimmedNew = passwords.new.trim();
-    const trimmedConfirm = passwords.confirm.trim();
-
-    if (!trimmedCurrent || !trimmedNew || !trimmedConfirm) {
-      setPasswordError("All fields are required");
-      return;
-    }
-    if (trimmedNew !== trimmedConfirm) {
-      setPasswordError("New passwords do not match");
-      return;
-    }
-    if (trimmedNew.length < 4) {
-      setPasswordError("Password must be at least 4 characters");
-      return;
-    }
-
-    setIsChanging(true);
-    setPasswordError('');
-    console.log(`Attempting password change for user: ${user?.username}`);
-    
-    try {
-      const res = await fetch('/api/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: user?.username,
-          currentPassword: trimmedCurrent,
-          newPassword: trimmedNew
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setPasswordSuccess("Password updated successfully!");
-        setPasswords({ current: '', new: '', confirm: '' });
-        setTimeout(() => {
-          setShowPasswordChange(false);
-          setPasswordSuccess('');
-        }, 2000);
-      } else {
-        console.warn(`Password change failed: ${data.message}`);
-        setPasswordError(data.message);
-      }
-    } catch (err) {
-      console.error("Failed to update password", err);
-      setPasswordError("Failed to update password");
-    } finally {
-      setIsChanging(false);
-    }
+    totalTime: Array.isArray(history) ? history.reduce((acc, curr) => acc + (curr.totalTime || 0), 0) : 0
   };
 
   const maskKey = (k: string) => {
@@ -231,8 +158,7 @@ const SettingsModal = ({
   const tabs = [
     { id: 'api', label: 'AI Engine', icon: Cpu },
     { id: 'stats', label: 'Learning Stats', icon: BarChart3 },
-    { id: 'account', label: 'Account', icon: UserCircle },
-    { id: 'security', label: 'Security & Data', icon: Shield },
+    { id: 'general', label: 'Preferences', icon: Palette },
   ];
 
   const bgColor = isDark ? "bg-slate-900" : "bg-white";
@@ -273,7 +199,7 @@ const SettingsModal = ({
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => { setActiveTab(tab.id as any); setShowPasswordChange(false); }}
+                    onClick={() => { setActiveTab(tab.id as any); }}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
                       activeTab === tab.id 
@@ -286,14 +212,6 @@ const SettingsModal = ({
                   </button>
                 ))}
               </nav>
-
-              <button 
-                onClick={onLogout}
-                className="mt-auto flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-500/10 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] w-full"
-              >
-                <LogOut className="w-4 h-4" />
-                Sign Out
-              </button>
             </div>
 
             {/* Content Area */}
@@ -313,7 +231,7 @@ const SettingsModal = ({
                   >
                     <div>
                       <h3 className={cn("text-xl font-bold mb-1", textColor)}>AI Configuration</h3>
-                      <p className={cn("text-sm", subTextColor)}>Manage your Gemini AI settings and quotas.</p>
+                      <p className={cn("text-sm", subTextColor)}>Manage your Gemini AI settings.</p>
                     </div>
 
                     <div className="space-y-4">
@@ -415,197 +333,17 @@ const SettingsModal = ({
                   </motion.div>
                 )}
 
-                {activeTab === 'account' && (
+                {activeTab === 'general' && (
                   <motion.div
-                    key="account"
+                    key="general"
                     initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10 }}
                     className="space-y-6"
                   >
                     <div>
-                      <h3 className={cn("text-xl font-bold mb-1", textColor)}>Account Profile</h3>
-                      <p className={cn("text-sm", subTextColor)}>Your personal information and security.</p>
-                    </div>
-
-                    {!showPasswordChange ? (
-                      <div className="space-y-4">
-                        <div className={cn("p-6 rounded-2xl border", itemBg, borderColor)}>
-                          <div className="flex items-center gap-4 mb-6">
-                            <div className={cn("w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold text-white shadow-lg", `bg-${accentColor}-500`)}>
-                              {user?.username?.[0]?.toUpperCase() || 'U'}
-                            </div>
-                            <div>
-                              <p className={cn("text-lg font-bold", textColor)}>{user?.full_name || user?.username || 'Guest User'}</p>
-                              <p className={cn("text-sm", subTextColor)}>{user?.email || 'No email provided'}</p>
-                              {user?.username && <p className="text-[10px] text-slate-500 mt-1">@{user.username}</p>}
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-3">
-                            <div className={cn("flex items-center justify-between p-4 rounded-xl border", isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-slate-200 shadow-sm")}>
-                              <div className="flex items-center gap-3">
-                                <Shield className="w-4 h-4 text-slate-500" />
-                                <span className={cn("text-sm font-medium", isDark ? "text-slate-300" : "text-slate-700")}>Account Status</span>
-                              </div>
-                              <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md">Verified</span>
-                            </div>
-                            
-                            <div className={cn("p-4 rounded-xl border space-y-3", isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-slate-200 shadow-sm")}>
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <Key className="w-4 h-4 text-slate-500" />
-                                  <span className={cn("text-sm font-medium", isDark ? "text-slate-300" : "text-slate-700")}>System API Key</span>
-                                </div>
-                                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded">Active</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className={cn("flex-1 font-mono text-[10px] p-2.5 rounded-lg border truncate", isDark ? "bg-slate-950 border-slate-800 text-slate-400" : "bg-slate-50 border-slate-100 text-slate-500")}>
-                                  {maskKey(user?.api_key || '')}
-                                </div>
-                                <div className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">
-                                  SECURE
-                                </div>
-                              </div>
-                              <p className="text-[10px] text-slate-500 leading-relaxed">This key is unique to your account and is used to authenticate your learning sessions.</p>
-                            </div>
-
-                            <div className={cn("flex items-center justify-between p-4 rounded-xl border", isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-slate-200 shadow-sm")}>
-                              <div className="flex items-center gap-3">
-                                <Trophy className="w-4 h-4 text-slate-500" />
-                                <span className={cn("text-sm font-medium", isDark ? "text-slate-300" : "text-slate-700")}>Subscription Plan</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className={cn(
-                                  "text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded",
-                                  user?.tier === 'pro' ? "text-indigo-500 bg-indigo-500/10" : "text-slate-500 bg-slate-500/10"
-                                )}>
-                                  {user?.tier || 'Free'}
-                                </span>
-                                {user?.tier === 'free' && (
-                                  <button 
-                                    onClick={onUpgrade}
-                                    className={cn("text-[10px] font-bold text-indigo-500 hover:underline")}
-                                  >
-                                    Upgrade
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className={cn("flex items-center justify-between p-4 rounded-xl border", isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-slate-200 shadow-sm")}>
-                              <div className="flex items-center gap-3">
-                                <Lock className="w-4 h-4 text-slate-500" />
-                                <span className={cn("text-sm font-medium", isDark ? "text-slate-300" : "text-slate-700")}>Password</span>
-                              </div>
-                              <button 
-                                onClick={() => setShowPasswordChange(true)}
-                                className={cn("px-4 py-1.5 rounded-lg text-xs font-bold transition-all", `bg-${accentColor}-500/10 text-${accentColor}-500 hover:bg-${accentColor}-500 hover:text-white`)}
-                              >
-                                Change Password
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className={cn("p-6 rounded-2xl border space-y-4", itemBg, borderColor)}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <button 
-                            onClick={() => { setShowPasswordChange(false); setPasswordError(''); setPasswordSuccess(''); }} 
-                            className={cn("p-2 rounded-lg transition-colors", isDark ? "text-slate-500 hover:text-white hover:bg-white/5" : "text-slate-400 hover:text-slate-900 hover:bg-slate-100")}
-                          >
-                            <ArrowLeft className="w-4 h-4" />
-                          </button>
-                          <h4 className={cn("font-bold", textColor)}>Change Password</h4>
-                        </div>
-                        
-                        <div className="space-y-4">
-                          <div>
-                            <label className={cn("text-xs font-bold uppercase tracking-wider mb-2 block", subTextColor)}>Current Password</label>
-                            <input 
-                              type="password"
-                              value={passwords.current}
-                              onChange={(e) => setPasswords({...passwords, current: e.target.value})}
-                              placeholder="••••••••"
-                              className={cn("w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 transition-all text-sm", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
-                            />
-                          </div>
-                          <div>
-                            <label className={cn("text-xs font-bold uppercase tracking-wider mb-2 block", subTextColor)}>New Password</label>
-                            <input 
-                              type="password"
-                              value={passwords.new}
-                              onChange={(e) => setPasswords({...passwords, new: e.target.value})}
-                              placeholder="Min. 4 characters"
-                              className={cn("w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 transition-all text-sm", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
-                            />
-                          </div>
-                          <div>
-                            <label className={cn("text-xs font-bold uppercase tracking-wider mb-2 block", subTextColor)}>Confirm New Password</label>
-                            <input 
-                              type="password"
-                              value={passwords.confirm}
-                              onChange={(e) => setPasswords({...passwords, confirm: e.target.value})}
-                              placeholder="Repeat new password"
-                              className={cn("w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 transition-all text-sm", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
-                            />
-                          </div>
-                        </div>
-
-                        {passwordError && (
-                          <motion.div 
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-2 text-red-500 text-xs"
-                          >
-                            <AlertCircle className="w-4 h-4" />
-                            <span>{passwordError}</span>
-                          </motion.div>
-                        )}
-                        {passwordSuccess && (
-                          <motion.div 
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2 text-emerald-500 text-xs"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>{passwordSuccess}</span>
-                          </motion.div>
-                        )}
-
-                        <div className="flex gap-3 pt-4">
-                          <button 
-                            onClick={() => { setShowPasswordChange(false); setPasswordError(''); setPasswordSuccess(''); }}
-                            className={cn("flex-1 py-3 rounded-xl font-bold text-sm transition-all", isDark ? "bg-slate-800 text-white hover:bg-slate-700" : "bg-slate-100 text-slate-700 hover:bg-slate-200")}
-                          >
-                            Cancel
-                          </button>
-                          <button 
-                            onClick={handlePasswordChange}
-                            disabled={isChanging}
-                            className={cn("flex-1 py-3 text-white font-bold rounded-xl transition-all text-sm flex items-center justify-center gap-2 shadow-lg", `bg-${accentColor}-500 hover:bg-${accentColor}-600 shadow-${accentColor}-500/20`)}
-                          >
-                            {isChanging ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                            Update Password
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-
-                {activeTab === 'security' && (
-                  <motion.div
-                    key="security"
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    className="space-y-6"
-                  >
-                    <div>
-                      <h3 className={cn("text-xl font-bold mb-1", textColor)}>Security & Data</h3>
-                      <p className={cn("text-sm", subTextColor)}>Manage your account security and personal data.</p>
+                      <h3 className={cn("text-xl font-bold mb-1", textColor)}>Preferences & Data</h3>
+                      <p className={cn("text-sm", subTextColor)}>Manage your interface and personal data.</p>
                     </div>
 
                     <div className="space-y-4">
@@ -705,11 +443,8 @@ const SettingsModal = ({
 };
 
 export default function App() {
-  const [state, setState] = useState<AppState>(localStorage.getItem('isLoggedIn') === 'true' ? 'landing' : 'login');
+  const [state, setState] = useState<AppState>('landing');
   const [analysis, setAnalysis] = useState<{ topics: string[], level: string } | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ username: string, email: string, full_name?: string, bio?: string, api_key: string, tier: 'free' | 'pro', daily_usage: number } | null>(
-    localStorage.getItem('user_info') ? JSON.parse(localStorage.getItem('user_info')!) : null
-  );
   const [isDarkMode, setIsDarkMode] = useState(localStorage.getItem('theme') !== 'light');
   const [accentColor, setAccentColor] = useState(localStorage.getItem('accent_color') || 'indigo');
   const [notificationsEnabled, setNotificationsEnabled] = useState(localStorage.getItem('notifications') === 'true');
@@ -731,8 +466,12 @@ export default function App() {
   const [explanationType, setExplanationType] = useState<'short' | 'detailed'>('short');
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<any[]>([]);
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
   const [userApiKey, setUserApiKey] = useState(() => {
     const saved = localStorage.getItem('user_gemini_api_key') || '';
     if (saved.startsWith('smk_')) {
@@ -750,281 +489,9 @@ export default function App() {
   const textColor = isDarkMode ? "text-white" : "text-slate-900";
   const subTextColor = isDarkMode ? "text-slate-400" : "text-slate-500";
 
-  useEffect(() => {
-    const syncUser = async () => {
-      if (currentUser) {
-        try {
-          const res = await fetch(`/api/me?username=${encodeURIComponent(currentUser.username)}&clientDate=${encodeURIComponent(new Date().toDateString())}`);
-          if (res.ok) {
-            const data = await res.json();
-            const updatedUser = { ...currentUser, ...data };
-            setCurrentUser(updatedUser);
-            localStorage.setItem('user_info', JSON.stringify(updatedUser));
-          }
-        } catch (err) {
-          console.error("Failed to sync user info", err);
-        }
-      }
-    };
-    syncUser();
-    // Only run on mount to sync existing session
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const paymentStatus = params.get('payment');
-    
-    if (paymentStatus === 'success') {
-      const isMock = params.get('mock') === 'true';
-      // Refresh user info to get the new tier
-      if (currentUser) {
-        // For mock payments, we manually update the tier in the DB for the session
-        if (isMock) {
-          fetch('/api/upgrade', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: currentUser.username })
-          }).then(res => res.json()).then(data => {
-            if (data.success) {
-              const updatedUser = { ...currentUser, tier: 'pro' as const };
-              setCurrentUser(updatedUser);
-              localStorage.setItem('user_info', JSON.stringify(updatedUser));
-            }
-          });
-        } else {
-          // Real payment: refresh from DB
-          const updatedUser = { ...currentUser, tier: 'pro' as const };
-          setCurrentUser(updatedUser);
-          localStorage.setItem('user_info', JSON.stringify(updatedUser));
-        }
-      }
-      setError(isMock 
-        ? 'Demo Mode: Mock payment successful! Your account has been upgraded to Pro.' 
-        : 'Payment successful! Your account has been upgraded to Pro.');
-      // Clear the URL params
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (paymentStatus === 'cancel') {
-      setError('Payment cancelled. You can try again whenever you\'re ready.');
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, [currentUser]);
 
-  const [loginUsername, setLoginUsername] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [showLoginPassword, setShowLoginPassword] = useState(false);
-  const [loginError, setLoginError] = useState('');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupUsername, setSignupUsername] = useState('');
-  const [signupFullName, setSignupFullName] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [showSignupPassword, setShowSignupPassword] = useState(false);
-  const [signupError, setSignupError] = useState('');
-  const [isSigningUp, setIsSigningUp] = useState(false);
-
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotError, setForgotError] = useState('');
-  const [forgotSuccess, setForgotSuccess] = useState('');
-  const [isForgotLoading, setIsForgotLoading] = useState(false);
-
-  const [resetPassword, setResetPassword] = useState('');
-  const [showResetPassword, setShowResetPassword] = useState(false);
-  const [resetError, setResetError] = useState('');
-  const [isResetLoading, setIsResetLoading] = useState(false);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError('');
-    setIsLoggingIn(true);
-
-    try {
-      const res = await fetch('/login', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username: loginUsername, password: loginPassword, clientDate: new Date().toDateString() })
-      });
-
-      const contentType = res.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        const data = await res.json();
-        if (data.success) {
-          localStorage.setItem('isLoggedIn', 'true');
-          localStorage.setItem('user_info', JSON.stringify(data.user));
-          setCurrentUser(data.user);
-          if (data.user.tier === 'pro') {
-            setState('landing');
-          } else {
-            setState('tier_selection');
-          }
-        } else {
-          setLoginError(data.message || 'Invalid credentials');
-        }
-      } else {
-        const text = await res.text();
-        console.error('Login error (non-JSON response):', text);
-        setLoginError('Server configuration error. Please try again.');
-      }
-    } catch (err) {
-      console.error('Login error:', err);
-      setLoginError('Server error. Please try again.');
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  const [signupSuccess, setSignupSuccess] = useState('');
-
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSignupError('');
-    setSignupSuccess('');
-
-    // Frontend Validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!signupEmail || !emailRegex.test(signupEmail)) {
-      setSignupError("Please enter a valid email address");
-      return;
-    }
-    if (signupPassword.length < 6) {
-      setSignupError("Password must be at least 6 characters long");
-      return;
-    }
-    if (signupUsername.length < 3) {
-      setSignupError("Username must be at least 3 characters long");
-      return;
-    }
-
-    setIsSigningUp(true);
-
-    try {
-      const res = await fetch('/api/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          username: signupUsername, 
-          email: signupEmail, 
-          password: signupPassword,
-          fullName: signupFullName
-        })
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setSignupSuccess(data.message || "Account created! Please check your email to verify your account.");
-        // Clear form
-        setSignupEmail('');
-        setSignupUsername('');
-        setSignupFullName('');
-        setSignupPassword('');
-        // Redirect to login after a delay
-        setTimeout(() => {
-          setState('login');
-          setSignupSuccess('');
-        }, 5000);
-      } else {
-        setSignupError(data.message || 'Signup failed');
-      }
-    } catch (err) {
-      console.error('Signup error:', err);
-      setSignupError('Server error. Please try again.');
-    } finally {
-      setIsSigningUp(false);
-    }
-  };
-
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setForgotError('');
-    setForgotSuccess('');
-    setIsForgotLoading(true);
-
-    const email = forgotEmail.trim();
-
-    try {
-      const res = await fetch('/api/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setForgotSuccess(data.message);
-        setTimeout(() => setState('reset_password'), 1500);
-      } else {
-        setForgotError(data.message || 'Error checking email');
-      }
-    } catch (err) {
-      console.error('Forgot password error:', err);
-      setForgotError('Server error. Please try again.');
-    } finally {
-      setIsForgotLoading(false);
-    }
-  };
-
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setResetError('');
-    setIsResetLoading(true);
-
-    const email = forgotEmail.trim();
-
-    try {
-      const res = await fetch('/api/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, newPassword: resetPassword })
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setState('login');
-        setLoginError('Password reset successfully. Please log in.');
-      } else {
-        setResetError(data.message || 'Error resetting password');
-      }
-    } catch (err) {
-      console.error('Reset password error:', err);
-      setResetError('Server error. Please try again.');
-    } finally {
-      setIsResetLoading(false);
-    }
-  };
-
-  const handleUpgrade = async () => {
-    if (!currentUser) return;
-    setIsForgotLoading(true); // Reusing loading state for upgrade button
-    try {
-      const res = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser.username, email: currentUser.email })
-      });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        setError(data.error || "Failed to initiate payment. Please ensure Stripe is configured.");
-      }
-    } catch (err) {
-      console.error("Upgrade failed:", err);
-      setError("An error occurred. Please try again later.");
-    } finally {
-      setIsForgotLoading(false);
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn');
-    localStorage.removeItem('user_info');
-    setCurrentUser(null);
-    setState('login');
-    setShowSettings(false);
-  };
 
   const exportHistory = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(history));
@@ -1043,7 +510,6 @@ export default function App() {
     const accuracy = Math.round((correct / selectedQuestions.length) * 100);
     
     const reportData = {
-      user: currentUser?.username,
       date: new Date().toLocaleString(),
       accuracy: `${accuracy}%`,
       correctAnswers: correct,
@@ -1096,11 +562,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (state === 'landing' && currentUser) {
+    if (state === 'landing') {
       fetchHistory();
-      fetchLeaderboard();
     }
-  }, [state, currentUser]);
+  }, [state]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -1111,43 +576,18 @@ export default function App() {
   }, [isDarkMode]);
 
   const fetchHistory = async () => {
-    try {
-      const res = await fetch('/api/results');
-      if (!res.ok) {
-        console.error("Failed to fetch history:", await res.text());
-        return;
+    // History is now local-only in debug mode
+    const saved = localStorage.getItem('quiz_history');
+    if (saved) {
+      try {
+        setHistory(JSON.parse(saved));
+      } catch (e) {
+        console.error("Failed to parse local history", e);
       }
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setHistory(data);
-      } else {
-        console.error("History data is not an array:", data);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchLeaderboard = async () => {
-    try {
-      const res = await fetch('/api/leaderboard');
-      if (!res.ok) {
-        console.error("Failed to fetch leaderboard:", await res.text());
-        return;
-      }
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setLeaderboard(data);
-      } else {
-        console.error("Leaderboard data is not an array:", data);
-      }
-    } catch (err) {
-      console.error(err);
     }
   };
 
   const onDrop = async (acceptedFiles: File[]) => {
-    if (!currentUser) return;
     const file = acceptedFiles[0];
     if (!file || file.type !== 'application/pdf') {
       setError("Please upload a valid PDF file.");
@@ -1170,42 +610,6 @@ export default function App() {
   };
 
   const startGeneration = async () => {
-    if (!currentUser) return;
-    
-    // Check usage
-    try {
-      const usageRes = await fetch('/api/usage/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser.username, count: ROUND_SIZE, clientDate: new Date().toDateString() })
-      });
-      
-      const contentType = usageRes.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        const usageData = await usageRes.json();
-        if (!usageRes.ok) {
-          const remaining = usageData.limit - usageData.current;
-          if (remaining > 0) {
-            setError(`Not enough daily limit remaining. You have ${remaining} questions left today. Try a smaller batch or upgrade.`);
-          } else {
-            setError(`Daily limit reached. ${usageData.tier === 'free' ? 'Upgrade to Pro for 2000 MCQs/day!' : 'Please try again tomorrow.'}`);
-          }
-          if (usageData.tier === 'free') setState('tier_selection');
-          return;
-        }
-        const updatedUser = { ...currentUser, daily_usage: usageData.newUsage };
-        setCurrentUser(updatedUser);
-        localStorage.setItem('user_info', JSON.stringify(updatedUser));
-      } else {
-        setError("Unable to verify usage limit. Please try again.");
-        return;
-      }
-    } catch (err) {
-      console.error("Usage check failed", err);
-      setError("Connection error while checking usage limit.");
-      return;
-    }
-
     setState('processing');
     setError(null);
     setAnalysis(null);
@@ -1233,7 +637,6 @@ export default function App() {
   });
 
   const nextRound = async () => {
-    if (!currentUser) return;
     setError(null);
     
     const baseStart = parseInt(parsingStartIndex) || 1;
@@ -1241,40 +644,6 @@ export default function App() {
     
     // Check if we already have these questions in the list
     if (questions.length < nextStart + ROUND_SIZE - 1) {
-    // Check usage
-      try {
-        const usageRes = await fetch('/api/usage/check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: currentUser.username, count: ROUND_SIZE, clientDate: new Date().toDateString() })
-        });
-        
-        const contentType = usageRes.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          const usageData = await usageRes.json();
-          if (!usageRes.ok) {
-            const remaining = usageData.limit - usageData.current;
-            if (remaining > 0) {
-              setError(`Not enough daily limit remaining. You have ${remaining} questions left today. Try a smaller batch or upgrade.`);
-            } else {
-              setError(`Daily limit reached. ${usageData.tier === 'free' ? 'Upgrade to Pro for 2000 MCQs/day!' : 'Please try again tomorrow.'}`);
-            }
-            if (usageData.tier === 'free') setState('tier_selection');
-            return;
-          }
-          const updatedUser = { ...currentUser, daily_usage: usageData.newUsage };
-          setCurrentUser(updatedUser);
-          localStorage.setItem('user_info', JSON.stringify(updatedUser));
-        } else {
-          setError("Unable to verify usage limit. Please try again.");
-          return;
-        }
-      } catch (err) {
-        console.error("Usage check failed", err);
-        setError("Connection error while checking usage limit.");
-        return;
-      }
-
       setIsGeneratingMore(true);
       try {
         let textToProcess = fullText;
@@ -1305,8 +674,6 @@ export default function App() {
   };
 
   const startQuiz = async (mode: number | 'all', roundIndex: number = 0, overrideQuestions?: MCQ[]) => {
-    if (!currentUser) return;
-    
     setQuizMode(mode);
     setCurrentRound(roundIndex);
     
@@ -1401,20 +768,18 @@ export default function App() {
         performanceSummary: getPerformanceSummary(accuracy),
         topics: analysis?.topics,
         level: analysis?.level,
-        detailedReport
+        detailedReport,
+        date: new Date().toISOString(),
+        id: Date.now()
       };
 
       setState('results');
 
-      // Save to DB
-      await fetch('/api/results', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(result)
-      }).catch(e => console.error("Failed to save result to server", e));
+      // Save to local storage
+      const newHistory = [result, ...history].slice(0, 50);
+      setHistory(newHistory);
+      localStorage.setItem('quiz_history', JSON.stringify(newHistory));
       
-      // Refresh history to update dashboard stats
-      await fetchHistory().catch(e => console.error("Failed to fetch history", e));
     } catch (err) {
       console.error("Error finishing quiz:", err);
       setState('results');
@@ -1430,519 +795,12 @@ export default function App() {
 
   // --- Render Helpers ---
 
-  const renderTierSelection = () => (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className={cn(
-          "w-full max-w-4xl grid md:grid-cols-2 gap-8 p-4",
-        )}
-      >
-        {/* Free Tier */}
-        <div className={cn(
-          "border rounded-3xl p-8 flex flex-col shadow-xl transition-all hover:shadow-2xl",
-          isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
-        )}>
-          <div className="mb-6">
-            <span className="px-3 py-1 rounded-full bg-slate-500/10 text-slate-500 text-xs font-bold uppercase tracking-wider">Current Plan</span>
-            <h3 className={cn("text-3xl font-bold mt-4", isDarkMode ? "text-white" : "text-slate-900")}>Free Learner</h3>
-            <p className={cn("mt-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>Perfect for casual self-study.</p>
-          </div>
-          
-          <div className="text-4xl font-bold mb-8">₹0<span className="text-sm font-normal text-slate-500">/month</span></div>
-          
-          <ul className="space-y-4 mb-10 flex-1">
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-emerald-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>200 MCQs per day</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-emerald-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Basic explanations</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-emerald-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Ads supported</span>
-            </li>
-          </ul>
-          
-          <button 
-            onClick={() => setState('landing')}
-            className={cn(
-              "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border shadow-sm",
-              isDarkMode ? "border-slate-700 text-slate-400 hover:bg-slate-800" : "border-slate-200 text-slate-600 hover:bg-slate-50"
-            )}
-          >
-            Continue with Free
-          </button>
-        </div>
-
-        {/* Pro Tier */}
-        <div className={cn(
-          "border rounded-3xl p-8 flex flex-col shadow-2xl relative overflow-hidden transition-all hover:shadow-indigo-500/10",
-          isDarkMode ? "bg-slate-900 border-indigo-500/30" : "bg-white border-indigo-200"
-        )}>
-          <div className="absolute top-0 right-0 bg-indigo-500 text-white px-6 py-1 rounded-bl-2xl text-xs font-bold uppercase tracking-widest">Recommended</div>
-          
-          <div className="mb-6">
-            <span className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-500 text-xs font-bold uppercase tracking-wider">Power User</span>
-            <h3 className={cn("text-3xl font-bold mt-4", isDarkMode ? "text-white" : "text-slate-900")}>Pro Scholar</h3>
-            <p className={cn("mt-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>For serious exam preparation.</p>
-          </div>
-          
-          <div className="text-4xl font-bold mb-8">₹1,499<span className="text-sm font-normal text-slate-500">/month</span></div>
-          
-          <ul className="space-y-4 mb-10 flex-1">
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-indigo-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>2,000 MCQs per day</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-indigo-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Detailed AI explanations</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-indigo-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Zero Ads</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-indigo-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Priority generation</span>
-            </li>
-          </ul>
-          
-          <button 
-            onClick={handleUpgrade}
-            disabled={isForgotLoading}
-            className={cn(
-              "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2",
-              isForgotLoading ? "bg-indigo-500/50 text-white" : "bg-indigo-500 text-white hover:bg-indigo-600"
-            )}
-          >
-            {isForgotLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Upgrade to Pro'}
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-
-  const renderSignup = () => (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={cn(
-          "w-full max-w-md border rounded-3xl p-8 shadow-2xl",
-          isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
-        )}
-      >
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-4">
-            <Brain className="w-10 h-10 text-white" />
-          </div>
-          <h2 className={cn("text-3xl font-bold", isDarkMode ? "text-white" : "text-slate-900")}>Create Account</h2>
-          <p className={cn("mt-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>Join QuizNova</p>
-        </div>
-
-        <form onSubmit={handleSignup} className="space-y-4">
-          <div>
-            <label className={cn("block text-sm font-medium mb-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>Email Address</label>
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-              <input 
-                type="email"
-                value={signupEmail}
-                onChange={(e) => setSignupEmail(e.target.value)}
-                placeholder="Enter email"
-                required
-                className={cn(
-                  "w-full border rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 transition-all",
-                  isDarkMode 
-                    ? "bg-slate-800 border-slate-700 text-white focus:ring-indigo-500" 
-                    : "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-400"
-                )}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className={cn("block text-sm font-medium mb-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>Full Name</label>
-            <div className="relative">
-              <UserCircle className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-              <input 
-                type="text"
-                value={signupFullName}
-                onChange={(e) => setSignupFullName(e.target.value)}
-                placeholder="Enter full name"
-                className={cn(
-                  "w-full border rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 transition-all",
-                  isDarkMode 
-                    ? "bg-slate-800 border-slate-700 text-white focus:ring-indigo-500" 
-                    : "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-400"
-                )}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className={cn("block text-sm font-medium mb-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>Username</label>
-            <div className="relative">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-              <input 
-                type="text"
-                value={signupUsername}
-                onChange={(e) => setSignupUsername(e.target.value)}
-                placeholder="Choose username"
-                required
-                className={cn(
-                  "w-full border rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 transition-all",
-                  isDarkMode 
-                    ? "bg-slate-800 border-slate-700 text-white focus:ring-indigo-500" 
-                    : "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-400"
-                )}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className={cn("block text-sm font-medium mb-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>Password</label>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-              <input 
-                type={showSignupPassword ? "text" : "password"}
-                value={signupPassword}
-                onChange={(e) => setSignupPassword(e.target.value)}
-                placeholder="Create password"
-                required
-                className={cn(
-                  "w-full border rounded-xl pl-12 pr-12 py-3 focus:outline-none focus:ring-2 transition-all",
-                  isDarkMode 
-                    ? "bg-slate-800 border-slate-700 text-white focus:ring-indigo-500" 
-                    : "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-400"
-                )}
-              />
-              <button 
-                type="button"
-                onClick={() => setShowSignupPassword(!showSignupPassword)}
-                className={cn(
-                  "absolute right-4 top-1/2 -translate-y-1/2 transition-colors",
-                  isDarkMode ? "text-slate-500 hover:text-white" : "text-slate-400 hover:text-slate-900"
-                )}
-              >
-                {showSignupPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
-          </div>
-
-          {signupError && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-500 text-sm">
-              <AlertCircle className="w-5 h-5" />
-              <span>{signupError}</span>
-            </div>
-          )}
-
-          {signupSuccess && (
-            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3 text-emerald-500 text-sm">
-              <CheckCircle2 className="w-5 h-5" />
-              <span>{signupSuccess}</span>
-            </div>
-          )}
-
-          <button 
-            type="submit"
-            disabled={isSigningUp}
-            className={cn(
-              "w-full py-4 text-white font-bold rounded-2xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20",
-              isSigningUp ? "bg-indigo-500/50" : "bg-indigo-500 hover:bg-indigo-600"
-            )}
-          >
-            {isSigningUp ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Create Account'}
-          </button>
-        </form>
-
-        <div className="mt-8 text-center">
-          <p className={cn("text-sm", isDarkMode ? "text-slate-400" : "text-slate-600")}>
-            Already have an account?{' '}
-            <button 
-              onClick={() => setState('login')}
-              className="text-indigo-500 hover:underline font-bold"
-            >
-              Login here
-            </button>
-          </p>
-        </div>
-      </motion.div>
-    </div>
-  );
-
-  const renderLogin = () => (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={cn(
-          "w-full max-w-md border rounded-3xl p-8 shadow-2xl",
-          isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
-        )}
-      >
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-4">
-            <Brain className="w-10 h-10 text-white" />
-          </div>
-          <h2 className={cn("text-3xl font-bold", isDarkMode ? "text-white" : "text-slate-900")}>Welcome Back</h2>
-          <p className={cn("mt-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>Login to QuizNova</p>
-        </div>
-
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <label className={cn("block text-sm font-medium mb-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>Username</label>
-            <div className="relative">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-              <input 
-                type="text"
-                value={loginUsername}
-                onChange={(e) => setLoginUsername(e.target.value)}
-                placeholder="Enter username"
-                required
-                className={cn(
-                  "w-full border rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 transition-all",
-                  isDarkMode 
-                    ? "bg-slate-800 border-slate-700 text-white focus:ring-indigo-500" 
-                    : "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-400"
-                )}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className={cn("block text-sm font-medium mb-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>Password</label>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-              <input 
-                type={showLoginPassword ? "text" : "password"}
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="Enter password"
-                required
-                className={cn(
-                  "w-full border rounded-xl pl-12 pr-12 py-3 focus:outline-none focus:ring-2 transition-all",
-                  isDarkMode 
-                    ? "bg-slate-800 border-slate-700 text-white focus:ring-indigo-500" 
-                    : "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-400"
-                )}
-              />
-              <button 
-                type="button"
-                onClick={() => setShowLoginPassword(!showLoginPassword)}
-                className={cn(
-                  "absolute right-4 top-1/2 -translate-y-1/2 transition-colors",
-                  isDarkMode ? "text-slate-500 hover:text-white" : "text-slate-400 hover:text-slate-900"
-                )}
-              >
-                {showLoginPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
-          </div>
-
-          {loginError && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-500 text-sm">
-              <AlertCircle className="w-5 h-5" />
-              <span>{loginError}</span>
-            </div>
-          )}
-
-          <div className="flex justify-end">
-            <button 
-              type="button"
-              onClick={() => setState('forgot_password')}
-              className="text-xs text-indigo-500 hover:underline font-medium"
-            >
-              Forgot Password?
-            </button>
-          </div>
-
-          <button 
-            type="submit"
-            disabled={isLoggingIn}
-            className={cn(
-              "w-full py-4 text-white font-bold rounded-2xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20",
-              isLoggingIn ? "bg-indigo-500/50" : "bg-indigo-500 hover:bg-indigo-600"
-            )}
-          >
-            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Login'}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <p className={cn("text-sm", isDarkMode ? "text-slate-400" : "text-slate-600")}>
-            Don't have an account?{' '}
-            <button 
-              onClick={() => setState('signup')}
-              className="text-indigo-500 hover:underline font-bold"
-            >
-              Sign up now
-            </button>
-          </p>
-        </div>
-      </motion.div>
-    </div>
-  );
-
-  const renderForgotPassword = () => (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={cn(
-          "w-full max-w-md border rounded-3xl p-8 shadow-2xl",
-          isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
-        )}
-      >
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-4">
-            <HelpCircle className="w-10 h-10 text-white" />
-          </div>
-          <h2 className={cn("text-3xl font-bold", isDarkMode ? "text-white" : "text-slate-900")}>Reset Password</h2>
-          <p className={cn("mt-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>Enter your email to continue</p>
-        </div>
-
-        <form onSubmit={handleForgotPassword} className="space-y-6">
-          <div>
-            <label className={cn("block text-sm font-medium mb-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>Email Address</label>
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-              <input 
-                type="email"
-                value={forgotEmail}
-                onChange={(e) => setForgotEmail(e.target.value)}
-                placeholder="Enter your email"
-                required
-                className={cn(
-                  "w-full border rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 transition-all",
-                  isDarkMode 
-                    ? "bg-slate-800 border-slate-700 text-white focus:ring-indigo-500" 
-                    : "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-400"
-                )}
-              />
-            </div>
-          </div>
-
-          {forgotError && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-500 text-sm">
-              <AlertCircle className="w-5 h-5" />
-              <span>{forgotError}</span>
-            </div>
-          )}
-
-          {forgotSuccess && (
-            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3 text-emerald-500 text-sm">
-              <CheckCircle2 className="w-5 h-5" />
-              <span>{forgotSuccess}</span>
-            </div>
-          )}
-
-          <button 
-            type="submit"
-            disabled={isForgotLoading}
-            className={cn(
-              "w-full py-4 text-white font-bold rounded-2xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20",
-              isForgotLoading ? "bg-indigo-500/50" : "bg-indigo-500 hover:bg-indigo-600"
-            )}
-          >
-            {isForgotLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Verify Email'}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <button 
-            onClick={() => setState('login')}
-            className="text-sm text-slate-500 hover:text-indigo-500 font-medium transition-colors"
-          >
-            Back to Login
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-
-  const renderResetPassword = () => (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={cn(
-          "w-full max-w-md border rounded-3xl p-8 shadow-2xl",
-          isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
-        )}
-      >
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-4">
-            <Lock className="w-10 h-10 text-white" />
-          </div>
-          <h2 className={cn("text-3xl font-bold", isDarkMode ? "text-white" : "text-slate-900")}>New Password</h2>
-          <p className={cn("mt-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>Set your new credentials</p>
-        </div>
-
-        <form onSubmit={handleResetPassword} className="space-y-6">
-          <div>
-            <label className={cn("block text-sm font-medium mb-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>New Password</label>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-              <input 
-                type={showResetPassword ? "text" : "password"}
-                value={resetPassword}
-                onChange={(e) => setResetPassword(e.target.value)}
-                placeholder="Enter new password"
-                required
-                className={cn(
-                  "w-full border rounded-xl pl-12 pr-12 py-3 focus:outline-none focus:ring-2 transition-all",
-                  isDarkMode 
-                    ? "bg-slate-800 border-slate-700 text-white focus:ring-indigo-500" 
-                    : "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-400"
-                )}
-              />
-              <button 
-                type="button"
-                onClick={() => setShowResetPassword(!showResetPassword)}
-                className={cn(
-                  "absolute right-4 top-1/2 -translate-y-1/2 transition-colors",
-                  isDarkMode ? "text-slate-500 hover:text-white" : "text-slate-400 hover:text-slate-900"
-                )}
-              >
-                {showResetPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
-          </div>
-
-          {resetError && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-500 text-sm">
-              <AlertCircle className="w-5 h-5" />
-              <span>{resetError}</span>
-            </div>
-          )}
-
-          <button 
-            type="submit"
-            disabled={isResetLoading}
-            className={cn(
-              "w-full py-4 text-white font-bold rounded-2xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20",
-              isResetLoading ? "bg-indigo-500/50" : "bg-indigo-500 hover:bg-indigo-600"
-            )}
-          >
-            {isResetLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Reset Password'}
-          </button>
-        </form>
-      </motion.div>
-    </div>
-  );
-
   const renderLanding = () => {
     const totalQuizzes = Array.isArray(history) ? history.length : 0;
     const avgAccuracy = (Array.isArray(history) && history.length > 0)
       ? (history.reduce((acc, curr) => acc + (curr.accuracy || 0), 0) / history.length).toFixed(1)
       : 0;
-    const totalQuestions = Array.isArray(history) ? history.reduce((acc, curr) => acc + (curr.total_questions || 0), 0) : 0;
+    const totalQuestions = Array.isArray(history) ? history.reduce((acc, curr) => acc + (curr.totalQuestions || 0), 0) : 0;
 
     const getGreetingInfo = () => {
       const hour = new Date().getHours();
@@ -1968,12 +826,12 @@ export default function App() {
               </span>
             </div>
             <h1 className={cn("text-4xl md:text-5xl font-bold mb-3 tracking-tight", isDarkMode ? "text-white" : "text-slate-900")}>
-              Welcome back, <span className={cn("font-extrabold drop-shadow-sm", `text-${accentColor}-500`)} style={{ textShadow: isDarkMode ? `0 0 20px var(--tw-shadow-color)` : 'none' }}>{currentUser?.username || 'Learner'}</span>!
+              Welcome back, <span className={cn("font-extrabold drop-shadow-sm", `text-${accentColor}-500`)} style={{ textShadow: isDarkMode ? `0 0 20px var(--tw-shadow-color)` : 'none' }}>Learner</span>!
             </h1>
             <p className={cn("text-lg", isDarkMode ? "text-slate-400" : "text-slate-600")}>What would you like to master today?</p>
           </motion.div>
 
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4">
             <button 
               onClick={() => { fetchHistory(); setState('history'); }}
               className={cn(
@@ -1985,18 +843,6 @@ export default function App() {
             >
               <History className="w-5 h-5" />
               History
-            </button>
-            <button 
-              onClick={() => { fetchLeaderboard(); setState('leaderboard'); }}
-              className={cn(
-                "flex items-center gap-2 px-6 py-3 rounded-2xl border transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] font-medium",
-                isDarkMode 
-                  ? "bg-white/5 border-white/10 hover:bg-white/10 text-white" 
-                  : "bg-white border-slate-200 hover:bg-slate-50 text-slate-900 shadow-sm"
-              )}
-            >
-              <Trophy className="w-5 h-5" />
-              Leaderboard
             </button>
           </div>
         </div>
@@ -2027,65 +873,6 @@ export default function App() {
               </div>
             </motion.div>
           ))}
-        </div>
-
-        {/* Usage & Ads Section */}
-        <div className="mb-12 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className={cn(
-            "lg:col-span-1 p-6 rounded-[2rem] border flex flex-col justify-between",
-            isDarkMode ? "bg-slate-900/50 border-slate-800" : "bg-white border-slate-200 shadow-sm"
-          )}>
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className={cn("font-bold text-sm uppercase tracking-wider", isDarkMode ? "text-slate-500" : "text-slate-400")}>Daily Usage</h3>
-                <span className={cn(
-                  "text-xs font-bold px-2 py-0.5 rounded",
-                  currentUser?.tier === 'pro' ? "text-emerald-500 bg-emerald-500/10" : "text-indigo-500 bg-indigo-500/10"
-                )}>
-                  {currentUser?.tier === 'pro' ? 'Pro Tier' : 'Free Tier'}
-                </span>
-              </div>
-              <div className="flex items-end gap-2 mb-2">
-                <span className={cn("text-3xl font-bold", isDarkMode ? "text-white" : "text-slate-900")}>{currentUser?.daily_usage || 0}</span>
-                <span className="text-slate-500 text-sm mb-1">/ {currentUser?.tier === 'pro' ? '2000' : '200'} MCQs</span>
-              </div>
-              <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-indigo-500 transition-all duration-500" 
-                  style={{ width: `${Math.min(((currentUser?.daily_usage || 0) / (currentUser?.tier === 'pro' ? 2000 : 200)) * 100, 100)}%` }}
-                />
-              </div>
-            </div>
-            {currentUser?.tier === 'free' ? (
-              <button 
-                onClick={() => setState('tier_selection')}
-                className="mt-6 text-xs font-bold text-indigo-500 hover:underline flex items-center gap-1 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]"
-              >
-                Upgrade to Pro for 2000/day <ChevronRight className="w-3 h-3" />
-              </button>
-            ) : (
-              <div className="mt-6 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs font-bold text-emerald-500 uppercase tracking-wider">Premium Active</span>
-              </div>
-            )}
-          </div>
-
-          <div className={cn(
-            "lg:col-span-2 p-6 rounded-[2rem] border flex items-center justify-center relative overflow-hidden group cursor-pointer",
-            isDarkMode ? "bg-slate-900/50 border-slate-800" : "bg-slate-50 border-slate-200 shadow-sm"
-          )}>
-            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="text-center relative z-10">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Sponsored Advertisement</p>
-              <h4 className={cn("text-xl font-bold mb-1", isDarkMode ? "text-slate-300" : "text-slate-700")}>Master Your Exams with QuizNova Pro</h4>
-              <p className="text-sm text-slate-500">Get unlimited access, detailed explanations, and zero ads.</p>
-              <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-500/20 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] hover:bg-indigo-600">
-                Learn More <ExternalLink className="w-3 h-3" />
-              </div>
-            </div>
-            <div className="absolute top-2 right-4 text-[8px] font-bold text-slate-500 uppercase">Ad</div>
-          </div>
         </div>
 
         <div className="max-w-4xl mx-auto">
@@ -2359,15 +1146,6 @@ export default function App() {
               <LayoutDashboard className={cn("w-5 h-5", `text-${accentColor}-500`)} />
               Quiz Mode
             </h3>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Remaining</span>
-              <span className={cn(
-                "px-2 py-0.5 rounded-md text-[10px] font-bold",
-                isDarkMode ? "bg-slate-800 text-slate-300" : "bg-slate-100 text-slate-600"
-              )}>
-                {(currentUser?.tier === 'pro' ? 2000 : 200) - (currentUser?.daily_usage || 0)}
-              </span>
-            </div>
           </div>
           <div className="flex flex-col gap-3">
             {[
@@ -2665,25 +1443,6 @@ export default function App() {
             )}
           </AnimatePresence>
         </motion.div>
-        {currentUser?.tier === 'free' && (
-          <div className={cn(
-            "max-w-4xl mx-auto mt-8 p-4 rounded-2xl border flex items-center justify-between",
-            isDarkMode ? "bg-slate-900/30 border-slate-800" : "bg-slate-50 border-slate-200"
-          )}>
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
-                <Info className="w-4 h-4" />
-              </div>
-              <p className="text-xs text-slate-500 font-medium">Enjoying QuizNova? Upgrade to Pro for detailed explanations & zero ads!</p>
-            </div>
-            <button 
-              onClick={() => setState('tier_selection')}
-              className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider hover:underline"
-            >
-              Upgrade Now
-            </button>
-          </div>
-        )}
       </div>
     );
   };
@@ -3046,10 +1805,10 @@ export default function App() {
               <p className="text-slate-500">No quiz history matches your search.</p>
             </div>
           ) : (
-            filteredHistory.map((item) => {
+            filteredHistory.map((item, index) => {
               const topics = item.topics ? (typeof item.topics === 'string' ? JSON.parse(item.topics) : item.topics) : [];
               return (
-                <div key={item.id} className={cn(
+                <div key={item.id || index} className={cn(
                   "p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between group transition-all border gap-4",
                   isDarkMode 
                     ? "bg-slate-900 border-slate-800 hover:border-indigo-500/50" 
@@ -3218,68 +1977,6 @@ export default function App() {
     );
   };
 
-  const renderLeaderboard = () => (
-    <div className="max-w-4xl mx-auto py-12 px-4">
-      <div className="flex items-center justify-between mb-12">
-        <h2 className={cn("text-3xl font-bold", isDarkMode ? "text-white" : "text-slate-900")}>Leaderboard</h2>
-        <button 
-          onClick={() => setState('landing')} 
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] font-medium shadow-sm hover:shadow-md",
-            isDarkMode ? "bg-slate-800 text-slate-400 hover:text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-          )}
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back
-        </button>
-      </div>
-      
-      <div className={cn(
-        "rounded-3xl overflow-hidden border",
-        isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <table className="w-full text-left">
-          <thead className={isDarkMode ? "bg-slate-800/50" : "bg-slate-50"}>
-            <tr>
-              <th className="px-6 py-4 text-slate-400 font-medium uppercase tracking-wider text-xs">Rank</th>
-              <th className="px-6 py-4 text-slate-400 font-medium uppercase tracking-wider text-xs">Accuracy</th>
-              <th className="px-6 py-4 text-slate-400 font-medium uppercase tracking-wider text-xs">Time</th>
-              <th className="px-6 py-4 text-slate-400 font-medium uppercase tracking-wider text-xs">Date</th>
-            </tr>
-          </thead>
-          <tbody className={cn("divide-y", isDarkMode ? "divide-slate-800" : "divide-slate-100")}>
-            {leaderboard.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-6 py-12 text-center text-slate-500">No data available yet.</td>
-              </tr>
-            ) : (
-              leaderboard.map((item, i) => (
-                <tr key={item.id} className={cn("transition-colors", isDarkMode ? "hover:bg-white/5" : "hover:bg-slate-50/50")}>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <span className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm",
-                        i === 0 ? "bg-yellow-500/20 text-yellow-500" : 
-                        i === 1 ? "bg-slate-300/20 text-slate-300" :
-                        i === 2 ? "bg-orange-500/20 text-orange-500" : 
-                        isDarkMode ? "bg-slate-800 text-slate-500" : "bg-slate-100 text-slate-400"
-                      )}>
-                        {i + 1}
-                      </span>
-                    </div>
-                  </td>
-                  <td className={cn("px-6 py-4 font-bold", isDarkMode ? "text-white" : "text-slate-900")}>{item.accuracy}%</td>
-                  <td className="px-6 py-4 text-slate-400">{formatTime(item.total_time)}</td>
-                  <td className="px-6 py-4 text-slate-500 text-sm">{new Date(item.created_at).toLocaleDateString()}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-
   return (
     <div className={cn(
       "min-h-screen transition-colors duration-500",
@@ -3302,7 +1999,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
-            {state !== 'login' && state !== 'signup' && <SettingsButton onClick={() => setShowSettings(true)} />}
+            <SettingsButton onClick={() => setShowSettings(true)} />
             <ThemeToggle isDark={isDarkMode} toggle={() => setIsDarkMode(!isDarkMode)} />
           </div>
         </div>
@@ -3314,14 +2011,11 @@ export default function App() {
         onClose={() => setShowSettings(false)} 
         currentKey={userApiKey}
         onSave={saveApiKey}
-        onLogout={handleLogout}
-        user={currentUser}
         isDark={isDarkMode}
         accentColor={accentColor}
         notifications={notificationsEnabled}
         onToggleNotifications={toggleNotifications}
         exportData={exportHistory}
-        onUpgrade={() => { setShowSettings(false); setState('tier_selection'); }}
         history={history}
         onUpdateAccentColor={updateAccentColor}
       />
@@ -3342,11 +2036,6 @@ export default function App() {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.3 }}
           >
-            {state === 'login' && renderLogin()}
-            {state === 'signup' && renderSignup()}
-            {state === 'forgot_password' && renderForgotPassword()}
-            {state === 'reset_password' && renderResetPassword()}
-            {state === 'tier_selection' && renderTierSelection()}
             {state === 'landing' && renderLanding()}
             {state === 'parsing_config' && renderParsingConfig()}
             {state === 'processing' && renderProcessing()}
@@ -3354,7 +2043,6 @@ export default function App() {
             {state === 'quiz' && renderQuiz()}
             {state === 'results' && renderResults()}
             {state === 'history' && renderHistory()}
-            {state === 'leaderboard' && renderLeaderboard()}
           </motion.div>
         </AnimatePresence>
       </main>

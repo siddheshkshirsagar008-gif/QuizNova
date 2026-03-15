@@ -1,39 +1,15 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import { createClient } from "@supabase/supabase-js";
+import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
 import "dotenv/config";
 import Stripe from "stripe";
-import nodemailer from "nodemailer";
-import crypto from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
-
-// Email Transporter Configuration
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
-// Supabase Client Initialization
-// Use Service Role Key for server-side operations to bypass RLS
-const supabaseUrl = process.env.SUPABASE_URL || "https://ynnehgwfmglsyshseqrs.supabase.co";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_BzkOLGOSMVL9DcFGU4_xMw_lHNg7wfs";
-
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.warn("WARNING: Supabase URL or Service Role Key is missing. Database operations may fail or be restricted by RLS.");
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function startServer() {
   console.log("Starting server...");
@@ -41,7 +17,91 @@ async function startServer() {
   const PORT = 3000;
 
   try {
-    console.log("Supabase client initialized.");
+    console.log("Initializing database...");
+    const db = new Database("quiz_learner.db");
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS quiz_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        total_questions INTEGER,
+        attempted INTEGER,
+        correct INTEGER,
+        wrong INTEGER,
+        accuracy REAL,
+        total_time INTEGER,
+        avg_time_per_question REAL,
+        performance_summary TEXT,
+        topics TEXT,
+        level TEXT,
+        detailed_report TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        email TEXT UNIQUE,
+        password TEXT,
+        full_name TEXT,
+        bio TEXT,
+        api_key TEXT UNIQUE,
+        tier TEXT DEFAULT 'free',
+        daily_usage INTEGER DEFAULT 0,
+        last_reset DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS login_activity (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        login_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+        ip_address TEXT,
+        user_agent TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    `);
+
+    // Add columns if they don't exist (migrations)
+    try { db.exec("ALTER TABLE users ADD COLUMN tier TEXT DEFAULT 'free'"); } catch (e) {}
+    try { db.exec("ALTER TABLE users ADD COLUMN daily_usage INTEGER DEFAULT 0"); } catch (e) {}
+    try { db.exec("ALTER TABLE users ADD COLUMN full_name TEXT"); } catch (e) {}
+    try { db.exec("ALTER TABLE users ADD COLUMN bio TEXT"); } catch (e) {}
+    try { db.exec("ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"); } catch (e) {}
+    try { 
+      db.exec("ALTER TABLE users ADD COLUMN last_reset DATETIME"); 
+      db.prepare("UPDATE users SET last_reset = CURRENT_TIMESTAMP WHERE last_reset IS NULL").run();
+    } catch (e) {}
+    try { db.exec("ALTER TABLE quiz_results ADD COLUMN topics TEXT"); } catch (e) {}
+    try { db.exec("ALTER TABLE quiz_results ADD COLUMN level TEXT"); } catch (e) {}
+    try { db.exec("ALTER TABLE quiz_results ADD COLUMN detailed_report TEXT"); } catch (e) {}
+
+    // Function to generate a random API key
+    const generateApiKey = () => {
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+      let key = "smk_";
+      for (let i = 0; i < 32; i++) {
+        key += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return key;
+    };
+
+    // Insert the testing user if not exists
+    const checkUser = db.prepare("SELECT * FROM users WHERE username = ?").get("SMKTech") as any;
+    if (!checkUser) {
+      db.prepare("INSERT INTO users (username, email, password, api_key) VALUES (?, ?, ?, ?)").run(
+        "SMKTech", 
+        "milindkshirsagar.mk@gmail.com", 
+        "9850",
+        generateApiKey()
+      );
+    } else if (!checkUser.api_key) {
+      db.prepare("UPDATE users SET api_key = ? WHERE username = ?").run(generateApiKey(), "SMKTech");
+    }
+    console.log("Database initialized successfully.");
 
     // Webhook needs raw body - MUST be before express.json()
     app.post("/api/webhook/stripe", express.raw({ type: "application/json" }), async (req, res) => {
@@ -67,7 +127,7 @@ async function startServer() {
 
         if (username) {
           console.log(`Payment successful for user: ${username}. Upgrading to Pro...`);
-          await supabase.from("users").update({ tier: 'pro' }).eq("username", username);
+          db.prepare("UPDATE users SET tier = 'pro' WHERE username = ?").run(username);
           
           // --- DISTRIBUTION LOGIC (Internal to company) ---
           // 1. API Premium Allocation: ₹650 (Handled via Stripe payout settings or manual transfer)
@@ -92,126 +152,64 @@ async function startServer() {
 
     // Health check
     app.get("/api/health", (req, res) => {
-      res.json({ status: "ok", nodeVersion: process.version, timestamp: new Date().toISOString() });
-    });
-
-    // Diagnostics endpoint to help solve server errors
-    app.get("/api/diagnostics", async (req, res) => {
-      const diagnostics: any = {
-        timestamp: new Date().toISOString(),
-        env: {
-          hasSupabaseUrl: !!process.env.SUPABASE_URL,
-          hasSupabaseKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-          hasStripeKey: !!process.env.STRIPE_SECRET_KEY,
-          hasSmtpUser: !!process.env.SMTP_USER,
-          hasSmtpPass: !!process.env.SMTP_PASS,
-        },
-        services: {}
-      };
-
-      // Check Supabase
-      try {
-        const { data, error } = await supabase.from("users").select("count").limit(1);
-        diagnostics.services.supabase = error ? { status: "error", message: error.message } : { status: "ok" };
-      } catch (err: any) {
-        diagnostics.services.supabase = { status: "error", message: err.message };
-      }
-
-      // Check Stripe
-      diagnostics.services.stripe = stripe ? { status: "ok" } : { status: "not_configured" };
-
-      // Check Nodemailer
-      try {
-        await transporter.verify();
-        diagnostics.services.email = { status: "ok" };
-      } catch (err: any) {
-        diagnostics.services.email = { status: "error", message: err.message };
-      }
-
-      res.json(diagnostics);
+      res.json({ status: "ok", nodeVersion: process.version });
     });
 
     // API Routes
-    app.post("/api/results", async (req, res) => {
-      try {
-        const {
-          totalQuestions,
-          attempted,
-          correct,
-          wrong,
-          accuracy,
-          totalTime,
-          avgTimePerQuestion,
-          performanceSummary,
-          topics,
-          level,
-          detailedReport
-        } = req.body;
+    app.post("/api/results", (req, res) => {
+      const {
+        totalQuestions,
+        attempted,
+        correct,
+        wrong,
+        accuracy,
+        totalTime,
+        avgTimePerQuestion,
+        performanceSummary,
+        topics,
+        level,
+        detailedReport
+      } = req.body;
 
-        const { data, error } = await supabase.from("quiz_results").insert({
-          total_questions: totalQuestions,
-          attempted,
-          correct,
-          wrong,
-          accuracy,
-          total_time: totalTime,
-          avg_time_per_question: avgTimePerQuestion,
-          performance_summary: performanceSummary,
-          topics: topics || null,
-          level: level || null,
-          detailed_report: detailedReport || null
-        }).select();
+      const stmt = db.prepare(`
+        INSERT INTO quiz_results (
+          total_questions, attempted, correct, wrong, accuracy, total_time, avg_time_per_question, performance_summary, topics, level, detailed_report
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
 
-        if (error) {
-          console.error("Supabase Insert Error (results):", error);
-          return res.status(500).json({ error: "Database error", message: error.message });
-        }
-        
-        if (!data || data.length === 0) {
-          return res.status(500).json({ error: "Database error", message: "No data returned after insert" });
-        }
+      const result = stmt.run(
+        totalQuestions,
+        attempted,
+        correct,
+        wrong,
+        accuracy,
+        totalTime,
+        avgTimePerQuestion,
+        performanceSummary,
+        topics ? JSON.stringify(topics) : null,
+        level || null,
+        detailedReport ? JSON.stringify(detailedReport) : null
+      );
 
-        res.json({ id: data[0].id });
-      } catch (err: any) {
-        console.error("API Results Error:", err);
-        res.status(500).json({ error: "Internal server error", message: err.message });
-      }
+      res.json({ id: result.lastInsertRowid });
     });
 
-    app.get("/api/results", async (req, res) => {
-      try {
-        const { data, error } = await supabase.from("quiz_results").select("*").order("created_at", { ascending: false });
-        if (error) {
-          console.error("Supabase Select Error (results):", error);
-          return res.status(500).json({ error: "Database error", message: error.message });
-        }
-        res.json(data);
-      } catch (err: any) {
-        console.error("API Get Results Error:", err);
-        res.status(500).json({ error: "Internal server error", message: err.message });
-      }
+    app.get("/api/results", (req, res) => {
+      const results = db.prepare("SELECT * FROM quiz_results ORDER BY created_at DESC").all();
+      res.json(results);
     });
 
-    app.get("/api/leaderboard", async (req, res) => {
-      try {
-        const { data, error } = await supabase.from("quiz_results")
-          .select("*")
-          .order("accuracy", { ascending: false })
-          .order("total_time", { ascending: true })
-          .limit(10);
-        if (error) {
-          console.error("Supabase Select Error (leaderboard):", error);
-          return res.status(500).json({ error: "Database error", message: error.message });
-        }
-        res.json(data);
-      } catch (err: any) {
-        console.error("API Leaderboard Error:", err);
-        res.status(500).json({ error: "Internal server error", message: err.message });
-      }
+    app.get("/api/leaderboard", (req, res) => {
+      const leaderboard = db.prepare(`
+        SELECT * FROM quiz_results 
+        ORDER BY accuracy DESC, total_time ASC 
+        LIMIT 10
+      `).all();
+      res.json(leaderboard);
     });
 
     // Helper to check and reset usage
-    const getUpdatedUsage = async (user: any, clientDate?: string) => {
+    const getUpdatedUsage = (user: any, clientDate?: string) => {
       if (!user) return 0;
       const now = new Date();
       
@@ -240,26 +238,26 @@ async function startServer() {
       }
 
       if (today && lastResetDate && today !== lastResetDate) {
-        await supabase.from("users").update({ daily_usage: 0, last_reset: today }).eq("id", user.id);
+        db.prepare("UPDATE users SET daily_usage = 0, last_reset = ? WHERE id = ?").run(today, user.id);
         return 0;
       }
       
       // If no last_reset at all, set it now
       if (!lastResetDate && today) {
-        await supabase.from("users").update({ last_reset: today }).eq("id", user.id);
+        db.prepare("UPDATE users SET last_reset = ? WHERE id = ?").run(today, user.id);
       }
 
       return user.daily_usage || 0;
     };
 
-    app.get("/api/me", async (req, res) => {
+    app.get("/api/me", (req, res) => {
       const { username, clientDate } = req.query;
       if (!username) return res.status(400).json({ error: "Username required" });
       
-      const { data: user, error } = await supabase.from("users").select("*").ilike("username", username as string).single();
-      if (error || !user) return res.status(404).json({ error: "User not found" });
+      const user = db.prepare("SELECT * FROM users WHERE username = ? COLLATE NOCASE").get(username as string) as any;
+      if (!user) return res.status(404).json({ error: "User not found" });
 
-      const currentUsage = await getUpdatedUsage(user, clientDate as string);
+      const currentUsage = getUpdatedUsage(user, clientDate as string);
       res.json({
         username: user.username,
         email: user.email,
@@ -271,71 +269,40 @@ async function startServer() {
       });
     });
 
-    app.post("/api/login", async (req, res) => {
-      try {
-        const { username, password, clientDate } = req.body;
-        const u = username?.trim();
-        
-        if (!u || !password) {
-          return res.status(400).json({ success: false, message: "Username and password are required" });
+    app.post("/api/login", (req, res) => {
+      const { username, password, clientDate } = req.body;
+      const u = username?.trim();
+      const user = db.prepare("SELECT * FROM users WHERE (username = ? COLLATE NOCASE OR email = ? COLLATE NOCASE) AND password = ?").get(u, u, password) as any;
+      if (user) {
+        // Log login activity
+        try {
+          const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+          const userAgent = req.headers['user-agent'];
+          db.prepare("INSERT INTO login_activity (user_id, ip_address, user_agent) VALUES (?, ?, ?)").run(user.id, String(ip), userAgent);
+        } catch (logErr) {
+          console.error("Failed to log login activity:", logErr);
         }
 
-        const { data: user, error } = await supabase.from("users")
-          .select("*")
-          .or(`username.ilike.${u},email.ilike.${u}`)
-          .eq("password", password)
-          .single();
-
-        if (error) {
-          console.error("Supabase Login Error:", error);
-          if (error.code === 'PGRST116') { // No rows returned
-            return res.status(401).json({ success: false, message: "Invalid credentials" });
-          }
-          return res.status(500).json({ success: false, message: "Database error: " + error.message });
-        }
-
-        if (user) {
-          if (!user.is_verified) {
-            return res.status(403).json({ success: false, message: "Please verify your email before logging in." });
-          }
-
-          // Log login activity
-          try {
-            const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-            const userAgent = req.headers['user-agent'];
-            await supabase.from("login_activity").insert({
-              user_id: user.id,
-              ip_address: String(ip),
-              user_agent: userAgent
-            });
-          } catch (logErr) {
-            console.error("Failed to log login activity:", logErr);
-          }
-
-          const currentUsage = await getUpdatedUsage(user, clientDate);
-          res.json({ 
-            success: true, 
-            user: { 
-              username: user.username, 
-              email: user.email, 
-              full_name: user.full_name,
-              bio: user.bio,
-              api_key: user.api_key,
-              tier: user.tier,
-              daily_usage: currentUsage
-            } 
-          });
-        } else {
-          res.status(401).json({ success: false, message: "Invalid credentials" });
-        }
-      } catch (err: any) {
-        console.error("Login Route Error:", err);
-        res.status(500).json({ success: false, message: "Server error: " + err.message });
+        const currentUsage = getUpdatedUsage(user, clientDate);
+        res.json({ 
+          success: true, 
+          user: { 
+            username: user.username, 
+            email: user.email, 
+            full_name: user.full_name,
+            bio: user.bio,
+            api_key: user.api_key,
+            tier: user.tier,
+            daily_usage: currentUsage
+          } 
+        });
+      } else {
+        res.status(401).json({ success: false, message: "Invalid credentials" });
       }
     });
 
     // Usage tracking endpoint
-    app.post("/api/usage/check", async (req, res) => {
+    app.post("/api/usage/check", (req, res) => {
       try {
         const { username, count, clientDate } = req.body;
         const requestedCount = parseInt(String(count)) || 0;
@@ -344,13 +311,13 @@ async function startServer() {
           return res.status(400).json({ error: "Username is required" });
         }
 
-        const { data: user, error } = await supabase.from("users").select("*").ilike("username", username).single();
+        const user = db.prepare("SELECT * FROM users WHERE username = ? COLLATE NOCASE").get(username) as any;
         
-        if (error || !user) {
+        if (!user) {
           return res.status(404).json({ error: "User not found" });
         }
 
-        const currentUsage = await getUpdatedUsage(user, clientDate);
+        const currentUsage = getUpdatedUsage(user, clientDate);
         const limit = user.tier === 'pro' ? 2000 : 200;
         
         if (currentUsage + requestedCount > limit) {
@@ -363,7 +330,7 @@ async function startServer() {
         }
 
         if (requestedCount > 0) {
-          await supabase.from("users").update({ daily_usage: user.daily_usage + requestedCount }).ilike("username", username);
+          db.prepare("UPDATE users SET daily_usage = daily_usage + ? WHERE username = ? COLLATE NOCASE").run(requestedCount, username);
         }
         res.json({ success: true, newUsage: currentUsage + requestedCount, limit });
       } catch (err: any) {
@@ -372,9 +339,9 @@ async function startServer() {
       }
     });
 
-    app.post("/api/upgrade", async (req, res) => {
+    app.post("/api/upgrade", (req, res) => {
       const { username } = req.body;
-      await supabase.from("users").update({ tier: 'pro' }).ilike("username", username);
+      db.prepare("UPDATE users SET tier = 'pro' WHERE username = ?").run(username);
       res.json({ success: true, tier: 'pro' });
     });
 
@@ -400,7 +367,7 @@ async function startServer() {
               price_data: {
                 currency: "inr",
                 product_data: {
-                  name: "QuizNova Pro Subscription",
+                  name: "SMKTech Pro Subscription",
                   description: "2,000 MCQs/day, Detailed AI Explanations, Zero Ads",
                 },
                 unit_amount: 149900, // ₹1,499.00
@@ -424,227 +391,82 @@ async function startServer() {
       }
     });
 
-    app.post("/api/signup", async (req, res) => {
+    app.post("/api/signup", (req, res) => {
+      const username = req.body.username?.trim();
+      const email = req.body.email?.trim();
+      const password = req.body.password;
+      const fullName = req.body.fullName?.trim();
       try {
-        const username = req.body.username?.trim();
-        const email = req.body.email?.trim();
-        const password = req.body.password;
-        const fullName = req.body.fullName?.trim();
-        
-        // Validation
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!email || !emailRegex.test(email)) {
-          return res.status(400).json({ success: false, message: "Please enter a valid email address" });
-        }
-        if (!password || password.length < 6) {
-          return res.status(400).json({ success: false, message: "Password must be at least 6 characters long" });
-        }
-        if (!username || username.length < 3) {
-          return res.status(400).json({ success: false, message: "Username must be at least 3 characters long" });
-        }
-
-        const generateApiKey = () => {
-          const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-          let key = "ql_";
-          for (let i = 0; i < 32; i++) {
-            key += chars.charAt(Math.floor(Math.random() * chars.length));
-          }
-          return key;
-        };
-
         const apiKey = generateApiKey();
-        const verificationToken = crypto.randomBytes(32).toString('hex');
-        
-        const { data, error } = await supabase.from("users").insert({
-          username,
-          email,
-          password,
-          full_name: fullName || null,
-          api_key: apiKey,
-          is_verified: false,
-          verification_token: verificationToken
-        }).select();
-
-        if (error) {
-          console.error("Supabase Signup Error:", error);
-          if (error.message.includes("unique") || error.code === '23505') {
-            return res.status(400).json({ success: false, message: "Username or Email already exists" });
-          }
-          return res.status(500).json({ success: false, message: "Database error: " + error.message });
-        }
-
-        // Send verification email
-        const appUrl = process.env.APP_URL || "http://localhost:3000";
-        const verificationLink = `${appUrl}/api/verify-email?token=${verificationToken}`;
-        
-        try {
-          if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-            throw new Error("SMTP credentials not configured");
-          }
-
-          await transporter.sendMail({
-            from: `"QuizNova" <${process.env.SMTP_USER}>`,
-            to: email,
-            subject: "Verify your email - QuizNova",
-            html: `
-              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                <h2 style="color: #4f46e5;">Welcome to QuizNova!</h2>
-                <p>Thank you for signing up. Please verify your email address to get started.</p>
-                <a href="${verificationLink}" style="display: inline-block; background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0;">Verify Email Address</a>
-                <p style="font-size: 14px; color: #64748b;">If you didn't create an account, you can safely ignore this email.</p>
-                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-                <p style="font-size: 12px; color: #94a3b8;">Link: ${verificationLink}</p>
-              </div>
-            `,
-          });
-          res.json({ success: true, message: "Account created! Please check your email to verify your account." });
-        } catch (mailErr: any) {
-          console.error("Failed to send verification email:", mailErr);
-          // In development/demo mode, we might want to auto-verify if email fails
-          if (process.env.NODE_ENV !== 'production') {
-             console.log("Auto-verifying user since email failed in non-production environment.");
-             await supabase.from("users").update({ is_verified: true }).eq("email", email);
-             return res.json({ success: true, message: "Account created! (Auto-verified for demo as email failed: " + mailErr.message + ")" });
-          }
-          res.json({ success: true, message: "Account created, but failed to send verification email. Please contact support. Error: " + mailErr.message });
-        }
+        const stmt = db.prepare("INSERT INTO users (username, email, password, full_name, api_key) VALUES (?, ?, ?, ?, ?)");
+        stmt.run(username, email, password, fullName || null, apiKey);
+        res.json({ success: true, message: "Account created successfully", api_key: apiKey });
       } catch (err: any) {
-        console.error("Signup Route Error:", err);
-        res.status(500).json({ success: false, message: "Server error: " + err.message });
-      }
-    });
-
-    app.get("/api/verify-email", async (req, res) => {
-      const { token } = req.query;
-      if (!token) return res.status(400).send("Verification token is required");
-
-      const { data: user, error } = await supabase.from("users").select("*").eq("verification_token", token).single();
-      
-      if (error || !user) {
-        return res.status(400).send(`
-          <html>
-            <body style="font-family: sans-serif; text-align: center; padding: 50px;">
-              <h1 style="color: #ef4444;">Invalid or expired token</h1>
-              <p>We couldn't verify your email. Please try signing up again or contact support.</p>
-              <a href="/" style="color: #4f46e5;">Back to App</a>
-            </body>
-          </html>
-        `);
-      }
-
-      await supabase.from("users").update({ is_verified: true, verification_token: null }).eq("id", user.id);
-
-      res.send(`
-        <html>
-          <body style="font-family: sans-serif; text-align: center; padding: 50px;">
-            <h1 style="color: #10b981;">Email Verified Successfully!</h1>
-            <p>Your email has been verified. You can now log in to the app.</p>
-            <a href="/" style="display: inline-block; background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 20px;">Go to Login</a>
-          </body>
-        </html>
-      `);
-    });
-
-    app.post("/api/forgot-password", async (req, res) => {
-      try {
-        const email = req.body.email?.trim();
-        if (!email) return res.status(400).json({ success: false, message: "Email is required" });
-
-        const { data: user, error } = await supabase.from("users").select("*").ilike("email", email).single();
-        
-        if (error) {
-          console.error("Supabase Forgot Password Error:", error);
-          if (error.code === 'PGRST116') {
-            return res.status(404).json({ success: false, message: "No account found with this email address." });
-          }
-          return res.status(500).json({ success: false, message: "Database error: " + error.message });
-        }
-
-        if (user) {
-          res.json({ success: true, message: "User found. You can now reset your password." });
+        if (err.message.includes("UNIQUE constraint failed")) {
+          res.status(400).json({ success: false, message: "Username or Email already exists" });
         } else {
-          res.status(404).json({ success: false, message: "No account found with this email address." });
+          res.status(500).json({ success: false, message: "Server error" });
         }
-      } catch (err: any) {
-        console.error("Forgot Password Route Error:", err);
-        res.status(500).json({ success: false, message: "Server error: " + err.message });
       }
     });
 
-    app.post("/api/reset-password", async (req, res) => {
-      try {
-        const email = req.body.email?.trim();
-        const { newPassword } = req.body;
-        
-        if (!email || !newPassword) {
-          return res.status(400).json({ success: false, message: "Email and new password are required" });
-        }
+    app.post("/api/forgot-password", (req, res) => {
+      const email = req.body.email?.trim();
+      console.log(`Forgot password request for email: [${email}]`);
+      const user = db.prepare("SELECT * FROM users WHERE email = ? COLLATE NOCASE").get(email) as any;
+      if (user) {
+        console.log(`User found for reset: ${user.username}`);
+        res.json({ success: true, message: "User found. You can now reset your password." });
+      } else {
+        console.log(`No user found for email: [${email}]`);
+        res.status(404).json({ success: false, message: "No account found with this email address." });
+      }
+    });
 
-        const { error } = await supabase.from("users").update({ password: newPassword }).ilike("email", email);
-        
-        if (error) {
-          console.error("Supabase Reset Password Error:", error);
-          return res.status(500).json({ success: false, message: "Database error: " + error.message });
-        }
-
+    app.post("/api/reset-password", (req, res) => {
+      const email = req.body.email?.trim();
+      const { newPassword } = req.body;
+      console.log(`Resetting password for email: [${email}]`);
+      const user = db.prepare("SELECT * FROM users WHERE email = ? COLLATE NOCASE").get(email) as any;
+      if (user) {
+        db.prepare("UPDATE users SET password = ? WHERE email = ? COLLATE NOCASE").run(newPassword, email);
+        console.log(`Password reset success for: ${user.username}`);
         res.json({ success: true, message: "Password reset successfully. You can now log in." });
-      } catch (err: any) {
-        console.error("Reset Password Route Error:", err);
-        res.status(500).json({ success: false, message: "Server error: " + err.message });
+      } else {
+        console.log(`Reset failed: No user found for email: [${email}]`);
+        res.status(404).json({ success: false, message: "User not found." });
       }
     });
 
-    app.post("/api/change-password", async (req, res) => {
-      try {
-        const { username, currentPassword, newPassword } = req.body;
-        if (!username || !currentPassword || !newPassword) {
-          return res.status(400).json({ success: false, message: "All fields are required" });
-        }
-
-        const { data: user, error } = await supabase.from("users")
-          .select("*")
-          .ilike("username", username)
-          .eq("password", currentPassword)
-          .single();
-
-        if (error) {
-          console.error("Supabase Change Password Auth Error:", error);
-          if (error.code === 'PGRST116') {
-            return res.status(401).json({ success: false, message: "Incorrect current password" });
-          }
-          return res.status(500).json({ success: false, message: "Database error: " + error.message });
-        }
-
-        if (user) {
-          const { error: updateError } = await supabase.from("users").update({ password: newPassword }).ilike("username", username);
-          if (updateError) {
-            console.error("Supabase Change Password Update Error:", updateError);
-            return res.status(500).json({ success: false, message: "Failed to update password: " + updateError.message });
-          }
-          res.json({ success: true, message: "Password updated successfully" });
-        } else {
-          res.status(401).json({ success: false, message: "Incorrect current password" });
-        }
-      } catch (err: any) {
-        console.error("Change Password Route Error:", err);
-        res.status(500).json({ success: false, message: "Server error: " + err.message });
+    app.post("/api/change-password", (req, res) => {
+      const { username, currentPassword, newPassword } = req.body;
+      console.log(`Password change request for user: ${username}`);
+      
+      const user = db.prepare("SELECT * FROM users WHERE username = ? COLLATE NOCASE AND password = ?").get(username, currentPassword) as any;
+      if (user) {
+        console.log(`User found, updating password for: ${username}`);
+        db.prepare("UPDATE users SET password = ? WHERE username = ? COLLATE NOCASE").run(newPassword, username);
+        res.json({ success: true, message: "Password updated successfully" });
+      } else {
+        console.log(`Password change failed: User not found or incorrect password for ${username}`);
+        res.status(401).json({ success: false, message: "Incorrect current password" });
       }
     });
 
-    app.get("/api/login-activity", async (req, res) => {
+    app.get("/api/login-activity", (req, res) => {
       const { username } = req.query;
       if (!username) return res.status(400).json({ error: "Username required" });
       
-      const { data: user, error } = await supabase.from("users").select("id").ilike("username", username as string).single();
-      if (error || !user) return res.status(404).json({ error: "User not found" });
+      const user = db.prepare("SELECT id FROM users WHERE username = ?").get(username as string) as any;
+      if (!user) return res.status(404).json({ error: "User not found" });
 
-      const { data: activity, error: actError } = await supabase.from("login_activity")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("login_time", { ascending: false })
-        .limit(20);
+      const activity = db.prepare(`
+        SELECT * FROM login_activity 
+        WHERE user_id = ? 
+        ORDER BY login_time DESC 
+        LIMIT 20
+      `).all(user.id);
       
-      if (actError) return res.status(500).json({ error: actError.message });
       res.json(activity);
     });
 
