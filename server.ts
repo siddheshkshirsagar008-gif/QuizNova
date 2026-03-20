@@ -1,15 +1,74 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
 import "dotenv/config";
-import Stripe from "stripe";
+import Razorpay from "razorpay";
+import crypto from "crypto";
+import { createClient } from "@supabase/supabase-js";
+import bcrypt from "bcryptjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
+const razorpay = process.env.RAZORPAY_KEY_ID ? new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+}) : null;
+
+// Supabase Client
+let supabaseInstance: any = null;
+const getSupabase = () => {
+  if (supabaseInstance) return supabaseInstance;
+
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return null;
+  }
+  
+  try {
+    supabaseInstance = createClient(supabaseUrl, supabaseServiceKey);
+    return supabaseInstance;
+  } catch (err: any) {
+    console.error("Failed to create Supabase client:", err.message || err);
+    return null;
+  }
+};
+
+const createNoopProxy = (message: string): any => {
+  const fn = (...args: any[]) => {
+    // If it's a chainable method like 'from', return the proxy itself
+    const chainableMethods = ['from', 'select', 'eq', 'single', 'order', 'limit', 'insert', 'update', 'delete', 'match', 'rpc', 'admin'];
+    return createNoopProxy(message);
+  };
+
+  // Make it look like a promise for async/await
+  (fn as any).then = (onFullfilled: any, onRejected: any) => Promise.reject(new Error(message)).catch(onRejected);
+  (fn as any).catch = (onRejected: any) => Promise.reject(new Error(message)).catch(onRejected);
+  (fn as any).finally = (onFinally: any) => Promise.reject(new Error(message)).finally(onFinally);
+
+  return new Proxy(fn, {
+    get: (target, prop) => {
+      if (prop === 'then' || prop === 'catch' || prop === 'finally') {
+        return (target as any)[prop];
+      }
+      return createNoopProxy(message);
+    }
+  });
+};
+
+const supabase: any = new Proxy({}, {
+  get: (target, prop) => {
+    const instance = getSupabase();
+    if (!instance) {
+      return createNoopProxy("Supabase not configured");
+    }
+    const value = instance[prop];
+    return typeof value === 'function' ? value.bind(instance) : value;
+  }
+});
 
 async function startServer() {
   console.log("Starting server...");
@@ -17,68 +76,6 @@ async function startServer() {
   const PORT = 3000;
 
   try {
-    console.log("Initializing database...");
-    const db = new Database("quiz_learner.db");
-
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS quiz_results (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        total_questions INTEGER,
-        attempted INTEGER,
-        correct INTEGER,
-        wrong INTEGER,
-        accuracy REAL,
-        total_time INTEGER,
-        avg_time_per_question REAL,
-        performance_summary TEXT,
-        topics TEXT,
-        level TEXT,
-        detailed_report TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE,
-        email TEXT UNIQUE,
-        password TEXT,
-        full_name TEXT,
-        bio TEXT,
-        api_key TEXT UNIQUE,
-        tier TEXT DEFAULT 'free',
-        daily_usage INTEGER DEFAULT 0,
-        last_reset DATETIME DEFAULT CURRENT_TIMESTAMP,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS login_activity (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        login_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-        ip_address TEXT,
-        user_agent TEXT,
-        FOREIGN KEY (user_id) REFERENCES users(id)
-      )
-    `);
-
-    // Add columns if they don't exist (migrations)
-    try { db.exec("ALTER TABLE users ADD COLUMN tier TEXT DEFAULT 'free'"); } catch (e) {}
-    try { db.exec("ALTER TABLE users ADD COLUMN daily_usage INTEGER DEFAULT 0"); } catch (e) {}
-    try { db.exec("ALTER TABLE users ADD COLUMN full_name TEXT"); } catch (e) {}
-    try { db.exec("ALTER TABLE users ADD COLUMN bio TEXT"); } catch (e) {}
-    try { db.exec("ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"); } catch (e) {}
-    try { 
-      db.exec("ALTER TABLE users ADD COLUMN last_reset DATETIME"); 
-      db.prepare("UPDATE users SET last_reset = CURRENT_TIMESTAMP WHERE last_reset IS NULL").run();
-    } catch (e) {}
-    try { db.exec("ALTER TABLE quiz_results ADD COLUMN topics TEXT"); } catch (e) {}
-    try { db.exec("ALTER TABLE quiz_results ADD COLUMN level TEXT"); } catch (e) {}
-    try { db.exec("ALTER TABLE quiz_results ADD COLUMN detailed_report TEXT"); } catch (e) {}
-
     // Function to generate a random API key
     const generateApiKey = () => {
       const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -88,58 +85,6 @@ async function startServer() {
       }
       return key;
     };
-
-    // Insert the testing user if not exists
-    const checkUser = db.prepare("SELECT * FROM users WHERE username = ?").get("SMKTech") as any;
-    if (!checkUser) {
-      db.prepare("INSERT INTO users (username, email, password, api_key) VALUES (?, ?, ?, ?)").run(
-        "SMKTech", 
-        "milindkshirsagar.mk@gmail.com", 
-        "9850",
-        generateApiKey()
-      );
-    } else if (!checkUser.api_key) {
-      db.prepare("UPDATE users SET api_key = ? WHERE username = ?").run(generateApiKey(), "SMKTech");
-    }
-    console.log("Database initialized successfully.");
-
-    // Webhook needs raw body - MUST be before express.json()
-    app.post("/api/webhook/stripe", express.raw({ type: "application/json" }), async (req, res) => {
-      if (!stripe) return res.status(500).json({ error: "Stripe not configured" });
-      
-      const sig = req.headers["stripe-signature"];
-      let event;
-
-      try {
-        event = stripe.webhooks.constructEvent(
-          req.body,
-          sig as string,
-          process.env.STRIPE_WEBHOOK_SECRET || ""
-        );
-      } catch (err: any) {
-        console.error(`Webhook Error: ${err.message}`);
-        return res.status(400).send(`Webhook Error: ${err.message}`);
-      }
-
-      if (event.type === "checkout.session.completed") {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const username = session.metadata?.username;
-
-        if (username) {
-          console.log(`Payment successful for user: ${username}. Upgrading to Pro...`);
-          db.prepare("UPDATE users SET tier = 'pro' WHERE username = ?").run(username);
-          
-          // --- DISTRIBUTION LOGIC (Internal to company) ---
-          // 1. API Premium Allocation: ₹650 (Handled via Stripe payout settings or manual transfer)
-          // 2. Company Account: ₹350 (Handled via Stripe payout settings)
-          // 3. User Commission: ₹200 (Handled via Stripe payout settings)
-          // 4. Buffer/Fees: ₹299
-          console.log(`Funds distributed internally for session: ${session.id}`);
-        }
-      }
-
-      res.json({ received: true });
-    });
 
     app.use(express.json({ limit: "50mb" }));
     app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -155,8 +100,117 @@ async function startServer() {
       res.json({ status: "ok", nodeVersion: process.version });
     });
 
+    // Auth Endpoints
+    app.post("/api/auth/signup", async (req, res) => {
+      const { username, password, fullName, email } = req.body;
+      const supabase = getSupabase();
+
+      if (!supabase) {
+        return res.status(500).json({ error: "Database not configured" });
+      }
+
+      try {
+        // Check if user exists
+        const { data: existingUser } = await supabase
+          .from("users")
+          .select("username")
+          .eq("username", username)
+          .maybeSingle();
+
+        if (existingUser) {
+          return res.status(400).json({ error: "Username already taken" });
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create user
+        const { data, error } = await supabase
+          .from("users")
+          .insert([{
+            username,
+            password: hashedPassword,
+            full_name: fullName,
+            email,
+            tier: 'free',
+            daily_usage: 0,
+            api_key: ''
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Remove password from response
+        const { password: _, ...userWithoutPassword } = data;
+        res.json({ user: userWithoutPassword });
+      } catch (error: any) {
+        console.error("Signup error details:", JSON.stringify(error, null, 2));
+        const errorMessage = error.message || error.details || "An unexpected error occurred during signup";
+        res.status(500).json({ error: errorMessage });
+      }
+    });
+
+    app.post("/api/auth/login", async (req, res) => {
+      const { username, password } = req.body;
+      const supabase = getSupabase();
+
+      if (!supabase) {
+        return res.status(500).json({ error: "Database not configured" });
+      }
+
+      try {
+        const { data: user, error } = await supabase
+          .from("users")
+          .select("*")
+          .eq("username", username)
+          .maybeSingle();
+
+        if (error || !user) {
+          return res.status(401).json({ error: "Invalid username or password" });
+        }
+
+        // Check password
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+          return res.status(401).json({ error: "Invalid username or password" });
+        }
+
+        // Remove password from response
+        const { password: _, ...userWithoutPassword } = user;
+        res.json({ user: userWithoutPassword });
+      } catch (error: any) {
+        console.error("Login error:", error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.get("/api/db-status", async (req, res) => {
+      try {
+        const isConfigured = !!process.env.VITE_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (!isConfigured) {
+          return res.json({ success: false, configured: false, message: "Supabase not configured" });
+        }
+        
+        const supabase = getSupabase();
+        if (!supabase) {
+          return res.json({ success: false, configured: false, message: "Supabase client initialization failed" });
+        }
+
+        const { error } = await supabase.from('users').select('count', { count: 'exact', head: true });
+        if (error) {
+          return res.json({ success: true, configured: true, connected: false, message: error.message });
+        }
+        
+        res.json({ success: true, configured: true, connected: true });
+      } catch (err: any) {
+        console.error("DB Status check error:", err.message || err);
+        res.json({ success: false, configured: true, connected: false, message: err.message || "DB error" });
+      }
+    });
+
     // API Routes
-    app.post("/api/results", (req, res) => {
+    app.post("/api/results", async (req, res) => {
       const {
         totalQuestions,
         attempted,
@@ -168,52 +222,92 @@ async function startServer() {
         performanceSummary,
         topics,
         level,
-        detailedReport
+        detailedReport,
+        username
       } = req.body;
 
-      const stmt = db.prepare(`
-        INSERT INTO quiz_results (
-          total_questions, attempted, correct, wrong, accuracy, total_time, avg_time_per_question, performance_summary, topics, level, detailed_report
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
+      try {
+        const { data: profile, error: profileError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('username', username || '')
+          .single();
 
-      const result = stmt.run(
-        totalQuestions,
-        attempted,
-        correct,
-        wrong,
-        accuracy,
-        totalTime,
-        avgTimePerQuestion,
-        performanceSummary,
-        topics ? JSON.stringify(topics) : null,
-        level || null,
-        detailedReport ? JSON.stringify(detailedReport) : null
-      );
+        if (profileError || !profile) {
+          return res.status(404).json({ error: "User profile not found" });
+        }
 
-      res.json({ id: result.lastInsertRowid });
+        const { data, error } = await supabase
+          .from('quiz_history')
+          .insert({
+            user_id: profile.id,
+            title: `Quiz on ${topics?.[0] || 'General Topic'}`,
+            total_questions: totalQuestions,
+            attempted,
+            correct,
+            wrong,
+            accuracy,
+            total_time: totalTime,
+            avg_time_per_question: avgTimePerQuestion,
+            performance_summary: performanceSummary,
+            topics: topics || [],
+            level: level || '',
+            detailed_report: detailedReport || []
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        res.json({ id: data.id });
+      } catch (err: any) {
+        console.error("Error saving result:", err.message || err);
+        res.status(500).json({ error: "Failed to save result" });
+      }
     });
 
-    app.get("/api/results", (req, res) => {
-      const results = db.prepare("SELECT * FROM quiz_results ORDER BY created_at DESC").all();
-      res.json(results);
+    app.get("/api/results", async (req, res) => {
+      const { username } = req.query;
+      
+      if (!getSupabase()) {
+        return res.json([]);
+      }
+      
+      try {
+        let query = supabase
+          .from('quiz_history')
+          .select('*, users!inner(username)');
+
+        if (username) {
+          query = query.eq('users.username', username);
+        }
+
+        const { data, error } = await query.order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const formattedData = data.map((r: any) => ({
+          ...r,
+          username: r.users.username,
+          totalQuestions: r.total_questions,
+          totalTime: r.total_time,
+          avgTimePerQuestion: r.avg_time_per_question,
+          performanceSummary: r.performance_summary,
+          detailedReport: r.detailed_report
+        }));
+
+        res.json(formattedData);
+      } catch (err: any) {
+        console.error("Error fetching results:", err.message || err);
+        res.status(500).json({ error: "Failed to fetch results" });
+      }
     });
 
-    app.get("/api/leaderboard", (req, res) => {
-      const leaderboard = db.prepare(`
-        SELECT * FROM quiz_results 
-        ORDER BY accuracy DESC, total_time ASC 
-        LIMIT 10
-      `).all();
-      res.json(leaderboard);
-    });
-
-    // Helper to check and reset usage
-    const getUpdatedUsage = (user: any, clientDate?: string) => {
-      if (!user) return 0;
+    // Helper to check and reset usage for Supabase
+    const getUpdatedUsageSupabase = async (profile: any, clientDate?: string) => {
+      if (!profile) return 0;
       const now = new Date();
       
-      // Helper to get YYYY-MM-DD from various formats
       const toISODate = (d: any) => {
         try {
           if (!d) return '';
@@ -225,11 +319,11 @@ async function startServer() {
         }
       };
 
-      // clientDate is usually from new Date().toDateString()
       const today = toISODate(clientDate || now);
-      let lastResetDate = user.last_reset || '';
+      let lastResetDate = profile.last_reset_date || '';
       
-      // If it's not already in YYYY-MM-DD format
+      console.log(`Usage update for ${profile.username}: today=${today}, lastReset=${lastResetDate}, currentUsage=${profile.daily_usage}`);
+
       if (lastResetDate && (typeof lastResetDate === 'string') && (lastResetDate.includes(':') || lastResetDate.includes(' ') || !lastResetDate.includes('-'))) {
         const parseInput = (lastResetDate.includes('-') && lastResetDate.includes(':')) 
           ? lastResetDate + " UTC" 
@@ -238,241 +332,249 @@ async function startServer() {
       }
 
       if (today && lastResetDate && today !== lastResetDate) {
-        db.prepare("UPDATE users SET daily_usage = 0, last_reset = ? WHERE id = ?").run(today, user.id);
+        console.log(`Resetting usage for ${profile.username} (new day: ${today} vs ${lastResetDate})`);
+        await supabase
+          .from('users')
+          .update({ daily_usage: 0, last_reset_date: today })
+          .eq('id', profile.id);
         return 0;
       }
       
-      // If no last_reset at all, set it now
       if (!lastResetDate && today) {
-        db.prepare("UPDATE users SET last_reset = ? WHERE id = ?").run(today, user.id);
+        console.log(`Initializing reset date for ${profile.username} to ${today}`);
+        await supabase
+          .from('users')
+          .update({ daily_usage: 0, last_reset_date: today })
+          .eq('id', profile.id);
+        return 0;
       }
 
-      return user.daily_usage || 0;
+      return profile.daily_usage || 0;
     };
 
-    app.get("/api/me", (req, res) => {
+    app.get("/api/me", async (req, res) => {
       const { username, clientDate } = req.query;
       if (!username) return res.status(400).json({ error: "Username required" });
       
-      const user = db.prepare("SELECT * FROM users WHERE username = ? COLLATE NOCASE").get(username as string) as any;
-      if (!user) return res.status(404).json({ error: "User not found" });
+      const isGuest = username === 'guest';
 
-      const currentUsage = getUpdatedUsage(user, clientDate as string);
-      res.json({
-        username: user.username,
-        email: user.email,
-        full_name: user.full_name,
-        bio: user.bio,
-        api_key: user.api_key,
-        tier: user.tier,
-        daily_usage: currentUsage
-      });
-    });
+      if (!getSupabase() || isGuest) {
+        return res.json({
+          username: username as string,
+          email: "",
+          full_name: isGuest ? "Guest User" : username as string,
+          bio: "",
+          api_key: "",
+          tier: "free",
+          daily_usage: 0,
+          id: isGuest ? "guest-id" : ""
+        });
+      }
 
-    app.post("/api/login", (req, res) => {
-      const { username, password, clientDate } = req.body;
-      const u = username?.trim();
-      const user = db.prepare("SELECT * FROM users WHERE (username = ? COLLATE NOCASE OR email = ? COLLATE NOCASE) AND password = ?").get(u, u, password) as any;
-      if (user) {
-        // Log login activity
-        try {
-          const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-          const userAgent = req.headers['user-agent'];
-          db.prepare("INSERT INTO login_activity (user_id, ip_address, user_agent) VALUES (?, ?, ?)").run(user.id, String(ip), userAgent);
-        } catch (logErr) {
-          console.error("Failed to log login activity:", logErr);
+      try {
+        const { data: profile, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', username as string)
+        .single();
+
+        if (error || !profile) {
+          // Fallback for missing profile if it's not guest but still needs to work
+          return res.json({
+            username: username as string,
+            email: "",
+            full_name: username as string,
+            bio: "",
+            api_key: "",
+            tier: "free",
+            daily_usage: 0,
+            id: ""
+          });
         }
 
-        const currentUsage = getUpdatedUsage(user, clientDate);
-        res.json({ 
-          success: true, 
-          user: { 
-            username: user.username, 
-            email: user.email, 
-            full_name: user.full_name,
-            bio: user.bio,
-            api_key: user.api_key,
-            tier: user.tier,
-            daily_usage: currentUsage
-          } 
+        const currentUsage = await getUpdatedUsageSupabase(profile, clientDate as string);
+        res.json({
+          username: profile.username,
+          full_name: profile.full_name,
+          bio: profile.bio,
+          api_key: profile.api_key,
+          tier: profile.tier,
+          daily_usage: currentUsage,
+          id: profile.id
         });
-      } else {
-        res.status(401).json({ success: false, message: "Invalid credentials" });
+      } catch (err: any) {
+        const errorMsg = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+        console.error("Error in /api/me:", errorMsg);
+        res.status(500).json({ error: "Internal server error" });
       }
     });
 
     // Usage tracking endpoint
-    app.post("/api/usage/check", (req, res) => {
+    app.post("/api/usage/check", async (req, res) => {
       try {
-        const { username, count, clientDate } = req.body;
+        const { username, count } = req.body;
         const requestedCount = parseInt(String(count)) || 0;
 
         if (!username) {
           return res.status(400).json({ error: "Username is required" });
         }
 
-        const user = db.prepare("SELECT * FROM users WHERE username = ? COLLATE NOCASE").get(username) as any;
+        // Fetch profile to check usage and tier
+        const { data: profile, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('username', username)
+          .single();
         
-        if (!user) {
-          return res.status(404).json({ error: "User not found" });
+        if (error || !profile) {
+          // If user doesn't exist, allow initial usage but don't track
+          return res.json({ success: true, newUsage: requestedCount, limit: 50 });
         }
 
-        const currentUsage = getUpdatedUsage(user, clientDate);
-        const limit = user.tier === 'pro' ? 2000 : 200;
-        
+        const limit = profile.tier === 'pro' ? 500 : 50;
+        const currentUsage = profile.daily_usage || 0;
+
         if (currentUsage + requestedCount > limit) {
-          return res.status(403).json({ 
-            error: "Daily limit reached", 
-            limit, 
-            current: currentUsage,
-            tier: user.tier
+          return res.json({ 
+            success: false, 
+            message: `Daily limit reached (${currentUsage}/${limit}). Upgrade to Pro for more!`,
+            newUsage: currentUsage,
+            limit
           });
         }
 
-        if (requestedCount > 0) {
-          db.prepare("UPDATE users SET daily_usage = daily_usage + ? WHERE username = ? COLLATE NOCASE").run(requestedCount, username);
-        }
-        res.json({ success: true, newUsage: currentUsage + requestedCount, limit });
+        // Update usage
+        const newUsage = currentUsage + requestedCount;
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ daily_usage: newUsage })
+          .eq('id', profile.id);
+
+        if (updateError) throw updateError;
+
+        res.json({ success: true, newUsage, limit });
       } catch (err: any) {
-        console.error("Usage check error:", err);
-        res.status(500).json({ error: "Internal server error", message: err.message });
+        console.error("Usage check error:", err.message || err);
+        // Fallback to success if DB fails, but log it
+        res.json({ success: true, newUsage: 0, limit: 50, warning: "Database connection issue" });
       }
     });
 
-    app.post("/api/upgrade", (req, res) => {
+    app.post("/api/usage/reset", async (req, res) => {
+      try {
+        const { username } = req.body;
+        if (!username) return res.status(400).json({ error: "Username required" });
+
+        const { data: profile, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('username', username)
+          .single();
+
+        if (error || !profile) return res.status(404).json({ error: "User not found" });
+
+        const now = new Date();
+        const offset = now.getTimezoneOffset();
+        const localDate = new Date(now.getTime() - (offset * 60 * 1000));
+        const today = localDate.toISOString().split('T')[0];
+
+        await supabase
+          .from('users')
+          .update({ daily_usage: 0, last_reset_date: today })
+          .eq('id', profile.id);
+
+        res.json({ success: true, message: "Usage reset successfully", newUsage: 0 });
+      } catch (err: any) {
+        console.error("Usage reset error:", err.message || err);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
+
+    app.post("/api/upgrade", async (req, res) => {
       const { username } = req.body;
-      db.prepare("UPDATE users SET tier = 'pro' WHERE username = ?").run(username);
+      if (username === 'guest') {
+        return res.json({ success: true, tier: 'pro' });
+      }
+      await supabase
+        .from('users')
+        .update({ tier: 'pro' })
+        .eq('username', username);
       res.json({ success: true, tier: 'pro' });
     });
 
-    app.post("/api/create-checkout-session", async (req, res) => {
-      const { username, email } = req.body;
-      const appUrl = process.env.APP_URL || "http://localhost:3000";
+    app.post("/api/create-razorpay-order", async (req, res) => {
+      const { amount } = req.body; // amount in INR
 
-      // If Stripe is not configured, provide a mock checkout URL for testing
-      if (!stripe) {
-        console.log("Stripe not configured. Providing mock checkout URL.");
+      if (!razorpay) {
+        console.log("Razorpay not configured. Providing mock order.");
         return res.json({ 
-          id: "mock_session_" + Date.now(), 
-          url: `${appUrl}?payment=success&mock=true`,
+          id: "mock_order_" + Date.now(), 
+          amount: (amount || 1499) * 100,
+          currency: "INR",
           isMock: true 
         });
       }
-      
+
       try {
-        const session = await stripe.checkout.sessions.create({
-          payment_method_types: ["card"],
-          line_items: [
-            {
-              price_data: {
-                currency: "inr",
-                product_data: {
-                  name: "SMKTech Pro Subscription",
-                  description: "2,000 MCQs/day, Detailed AI Explanations, Zero Ads",
-                },
-                unit_amount: 149900, // ₹1,499.00
-              },
-              quantity: 1,
-            },
-          ],
-          mode: "payment",
-          customer_email: email,
-          metadata: {
-            username,
-          },
-          success_url: `${appUrl}?payment=success`,
-          cancel_url: `${appUrl}?payment=cancel`,
-        });
+        const options = {
+          amount: (amount || 1499) * 100, // amount in the smallest currency unit (paise)
+          currency: "INR",
+          receipt: "receipt_" + Date.now(),
+        };
 
-        res.json({ id: session.id, url: session.url });
-      } catch (err: any) {
-        console.error("Stripe session creation failed:", err);
-        res.status(500).json({ error: err.message });
+        const order = await razorpay.orders.create(options);
+        res.json(order);
+      } catch (error: any) {
+        console.error("Razorpay order creation error:", error.message || error);
+        res.status(500).json({ error: "Failed to create Razorpay order" });
       }
     });
 
-    app.post("/api/signup", (req, res) => {
-      const username = req.body.username?.trim();
-      const email = req.body.email?.trim();
-      const password = req.body.password;
-      const fullName = req.body.fullName?.trim();
-      try {
-        const apiKey = generateApiKey();
-        const stmt = db.prepare("INSERT INTO users (username, email, password, full_name, api_key) VALUES (?, ?, ?, ?, ?)");
-        stmt.run(username, email, password, fullName || null, apiKey);
-        res.json({ success: true, message: "Account created successfully", api_key: apiKey });
-      } catch (err: any) {
-        if (err.message.includes("UNIQUE constraint failed")) {
-          res.status(400).json({ success: false, message: "Username or Email already exists" });
-        } else {
-          res.status(500).json({ success: false, message: "Server error" });
-        }
-      }
-    });
+    app.post("/api/verify-razorpay-payment", async (req, res) => {
+      const { 
+        razorpay_order_id, 
+        razorpay_payment_id, 
+        razorpay_signature,
+        username,
+        isMock
+      } = req.body;
 
-    app.post("/api/forgot-password", (req, res) => {
-      const email = req.body.email?.trim();
-      console.log(`Forgot password request for email: [${email}]`);
-      const user = db.prepare("SELECT * FROM users WHERE email = ? COLLATE NOCASE").get(email) as any;
-      if (user) {
-        console.log(`User found for reset: ${user.username}`);
-        res.json({ success: true, message: "User found. You can now reset your password." });
+      if (isMock) {
+        console.log(`Mock payment successful for user: ${username}. Upgrading to Pro...`);
+        await supabase
+          .from('users')
+          .update({ tier: 'pro' })
+          .eq('username', username);
+        return res.json({ success: true });
+      }
+
+      if (!razorpay) {
+        return res.status(500).json({ error: "Razorpay not configured" });
+      }
+
+      const body = razorpay_order_id + "|" + razorpay_payment_id;
+      const expectedSignature = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+        .update(body.toString())
+        .digest("hex");
+
+      if (expectedSignature === razorpay_signature) {
+        console.log(`Razorpay payment verified for user: ${username}. Upgrading to Pro...`);
+        await supabase
+          .from('users')
+          .update({ tier: 'pro' })
+          .eq('username', username);
+        
+        res.json({ success: true });
       } else {
-        console.log(`No user found for email: [${email}]`);
-        res.status(404).json({ success: false, message: "No account found with this email address." });
+        res.status(400).json({ success: false, message: "Invalid signature" });
       }
     });
 
-    app.post("/api/reset-password", (req, res) => {
-      const email = req.body.email?.trim();
-      const { newPassword } = req.body;
-      console.log(`Resetting password for email: [${email}]`);
-      const user = db.prepare("SELECT * FROM users WHERE email = ? COLLATE NOCASE").get(email) as any;
-      if (user) {
-        db.prepare("UPDATE users SET password = ? WHERE email = ? COLLATE NOCASE").run(newPassword, email);
-        console.log(`Password reset success for: ${user.username}`);
-        res.json({ success: true, message: "Password reset successfully. You can now log in." });
-      } else {
-        console.log(`Reset failed: No user found for email: [${email}]`);
-        res.status(404).json({ success: false, message: "User not found." });
-      }
-    });
-
-    app.post("/api/change-password", (req, res) => {
-      const { username, currentPassword, newPassword } = req.body;
-      console.log(`Password change request for user: ${username}`);
-      
-      const user = db.prepare("SELECT * FROM users WHERE username = ? COLLATE NOCASE AND password = ?").get(username, currentPassword) as any;
-      if (user) {
-        console.log(`User found, updating password for: ${username}`);
-        db.prepare("UPDATE users SET password = ? WHERE username = ? COLLATE NOCASE").run(newPassword, username);
-        res.json({ success: true, message: "Password updated successfully" });
-      } else {
-        console.log(`Password change failed: User not found or incorrect password for ${username}`);
-        res.status(401).json({ success: false, message: "Incorrect current password" });
-      }
-    });
-
-    app.get("/api/login-activity", (req, res) => {
-      const { username } = req.query;
-      if (!username) return res.status(400).json({ error: "Username required" });
-      
-      const user = db.prepare("SELECT id FROM users WHERE username = ?").get(username as string) as any;
-      if (!user) return res.status(404).json({ error: "User not found" });
-
-      const activity = db.prepare(`
-        SELECT * FROM login_activity 
-        WHERE user_id = ? 
-        ORDER BY login_time DESC 
-        LIMIT 20
-      `).all(user.id);
-      
-      res.json(activity);
-    });
 
     // Global Error Handler
     app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-      console.error("Global Error Handler:", err);
+      console.error("Global Error Handler:", err.message || err);
       res.status(500).json({ error: "Internal Server Error", message: err.message });
     });
 
@@ -490,11 +592,16 @@ async function startServer() {
       });
     }
 
+    console.log("Vite middleware attached.");
+
     app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`Server running on http://0.0.0.0:${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      const supabaseConfigured = !!process.env.VITE_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+      console.log(`Supabase Status: ${supabaseConfigured ? "CONFIGURED" : "NOT CONFIGURED"}`);
     });
-  } catch (err) {
-    console.error("Failed to start server:", err);
+  } catch (err: any) {
+    console.error("Failed to start server:", err.message || err);
     process.exit(1);
   }
 }

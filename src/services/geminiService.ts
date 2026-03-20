@@ -98,8 +98,8 @@ export async function generateMCQsFromText(
     try {
       const result = JSON.parse(jsonText);
       return result.questions || [];
-    } catch (parseError) {
-      console.error("Initial JSON parse failed, attempting recovery...", parseError);
+    } catch (parseError: any) {
+      console.error("Initial JSON parse failed, attempting recovery...", parseError.message || parseError);
       // If it's a truncation error (unterminated string), try to close the JSON
       // This is a basic attempt to fix truncated JSON
       if (jsonText.lastIndexOf('"') > jsonText.lastIndexOf(':')) {
@@ -121,7 +121,7 @@ export async function generateMCQsFromText(
       throw parseError;
     }
   } catch (error: any) {
-    console.error("Failed to generate MCQs:", error);
+    console.error("Failed to generate MCQs:", error.message || error);
     throw new Error(error.message || "Failed to generate valid MCQs from the document.");
   }
 }
@@ -249,8 +249,8 @@ export async function generateMCQsFromConceptText(
         questions: result.questions || [],
         analysis: result.analysis || { topics: [], level: "Unknown" }
       };
-    } catch (parseError) {
-      console.error("Initial JSON parse failed in concept generation, attempting recovery...", parseError);
+    } catch (parseError: any) {
+      console.error("Initial JSON parse failed in concept generation, attempting recovery...", parseError.message || parseError);
       
       // Try to find the last complete question object
       const lastCompleteIndex = jsonText.lastIndexOf('},');
@@ -269,7 +269,7 @@ export async function generateMCQsFromConceptText(
       throw parseError;
     }
   } catch (error: any) {
-    console.error("Failed to analyze and generate MCQs:", error);
+    console.error("Failed to analyze and generate MCQs:", error.message || error);
     throw new Error(error.message || "Failed to process the document text.");
   }
 }

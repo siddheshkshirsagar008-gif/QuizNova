@@ -5,7 +5,7 @@ import {
   Play,
   Hash,
   Brain, 
-  Trophy,
+  Trophy, 
   History, 
   Moon, 
   Sun, 
@@ -28,18 +28,27 @@ import {
   Key,
   ExternalLink,
   X,
-  Cpu,
+  Lock,
+  User,
+  LogOut,
   Shield,
+  UserCircle,
+  Cpu,
   Palette,
   Bell,
   HelpCircle,
-  Volume2
+  Save,
+  Volume2,
+  Zap,
+  RefreshCw,
+  Database,
+  ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDropzone } from 'react-dropzone';
 import { extractTextFromPDF } from './services/pdfService';
 import { generateMCQsFromText, generateMCQsFromConceptText, MCQ } from './services/geminiService';
-import { cn, formatTime } from './lib/utils';
+import { cn, formatTime, getLocalDateString } from './lib/utils';
 import { 
   PieChart, 
   Pie, 
@@ -56,7 +65,7 @@ import Markdown from 'react-markdown';
 
 // --- Types ---
 
-type AppState = 'landing' | 'uploading' | 'processing' | 'mode_selection' | 'quiz' | 'results' | 'history' | 'parsing_config';
+type AppState = 'auth' | 'landing' | 'uploading' | 'processing' | 'mode_selection' | 'quiz' | 'results' | 'history' | 'tier_selection' | 'parsing_config';
 
 interface QuizResult {
   totalQuestions: number;
@@ -108,31 +117,51 @@ const SettingsModal = ({
   onClose, 
   currentKey, 
   onSave, 
+  onLogout,
+  user,
   isDark,
   accentColor,
   notifications,
   onToggleNotifications,
   exportData,
+  onUpgrade,
   history,
   onUpdateAccentColor,
+  onResetUsage
 }: { 
   isOpen: boolean, 
   onClose: () => void, 
   currentKey: string, 
   onSave: (key: string) => void, 
+  onLogout: () => void,
+  user: { username: string, email: string, full_name?: string, bio?: string, api_key: string, tier: 'free' | 'pro', daily_usage: number } | null,
   isDark: boolean,
   accentColor: string,
   notifications: boolean,
   onToggleNotifications: () => void,
   exportData: () => void,
+  onUpgrade: () => void,
   history: any[],
   onUpdateAccentColor: (color: string) => void,
+  onResetUsage: () => Promise<void>
 }) => {
   const [key, setKey] = useState(currentKey);
   const [showKey, setShowKey] = useState(false);
-  const [activeTab, setActiveTab] = useState<'api' | 'stats' | 'general'>('api');
+  const [activeTab, setActiveTab] = useState<'api' | 'stats' | 'preferences' | 'database'>('api');
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [dbConfigured, setDbConfigured] = useState<boolean | null>(null);
   
   const [soundEnabled, setSoundEnabled] = useState(localStorage.getItem('sound_enabled') !== 'false');
+
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/db-status')
+        .then(res => res.json())
+        .then(data => setDbConfigured(data.configured))
+        .catch(() => setDbConfigured(false));
+    }
+  }, [isOpen]);
 
   const toggleSound = () => {
     const newVal = !soundEnabled;
@@ -146,7 +175,7 @@ const SettingsModal = ({
       ? Math.round(history.reduce((acc, curr) => acc + (curr.accuracy || 0), 0) / history.length) 
       : 0,
     totalQuestions: Array.isArray(history) ? history.reduce((acc, curr) => acc + (curr.attempted || 0), 0) : 0,
-    totalTime: Array.isArray(history) ? history.reduce((acc, curr) => acc + (curr.totalTime || 0), 0) : 0
+    totalTime: Array.isArray(history) ? history.reduce((acc, curr) => acc + (curr.total_time || 0), 0) : 0
   };
 
   const maskKey = (k: string) => {
@@ -158,7 +187,8 @@ const SettingsModal = ({
   const tabs = [
     { id: 'api', label: 'AI Engine', icon: Cpu },
     { id: 'stats', label: 'Learning Stats', icon: BarChart3 },
-    { id: 'general', label: 'Preferences', icon: Palette },
+    { id: 'preferences', label: 'Preferences', icon: Palette },
+    { id: 'database', label: 'Database', icon: Database },
   ];
 
   const bgColor = isDark ? "bg-slate-900" : "bg-white";
@@ -212,6 +242,19 @@ const SettingsModal = ({
                   </button>
                 ))}
               </nav>
+
+              <div className="mt-auto pt-6 border-t border-slate-800/50">
+                <button
+                  onClick={onLogout}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
+                    "text-red-500 hover:bg-red-500/10"
+                  )}
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
+                </button>
+              </div>
             </div>
 
             {/* Content Area */}
@@ -231,7 +274,7 @@ const SettingsModal = ({
                   >
                     <div>
                       <h3 className={cn("text-xl font-bold mb-1", textColor)}>AI Configuration</h3>
-                      <p className={cn("text-sm", subTextColor)}>Manage your Gemini AI settings.</p>
+                      <p className={cn("text-sm", subTextColor)}>Manage your Gemini AI settings and quotas.</p>
                     </div>
 
                     <div className="space-y-4">
@@ -255,6 +298,39 @@ const SettingsModal = ({
                         <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
                           Your key is stored securely. For your safety, the full key is hidden. Status: <span className={key ? "text-emerald-500 font-bold" : "text-slate-500"}>{key ? "Connected" : "Disconnected"}</span>
                         </p>
+                      </div>
+
+                      <div className={cn("p-5 rounded-2xl border", itemBg, borderColor)}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <Zap className={cn("w-4 h-4", `text-${accentColor}-500`)} />
+                            <span className={cn("text-sm font-bold", textColor)}>Daily MCQ Quota</span>
+                          </div>
+                          <span className={cn(
+                            "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded",
+                            user?.tier === 'pro' ? "text-amber-500 bg-amber-500/10" : "text-blue-500 bg-blue-500/10"
+                          )}>
+                            {user?.tier === 'pro' ? 'Pro' : 'Free'}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className={subTextColor}>Usage Status</span>
+                            <span className={cn("font-bold", textColor)}>
+                              {user?.daily_usage || 0} / {user?.tier === 'pro' ? 500 : 50}
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${Math.min(100, ((user?.daily_usage || 0) / (user?.tier === 'pro' ? 500 : 50)) * 100)}%` }}
+                              className={cn("h-full rounded-full", `bg-${accentColor}-500`)}
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-500 italic">
+                            Quota resets every 24 hours at midnight UTC.
+                          </p>
+                        </div>
                       </div>
 
                       <div className={cn("p-5 rounded-2xl border space-y-3", `bg-${accentColor}-500/5 border-${accentColor}-500/10`)}>
@@ -282,6 +358,70 @@ const SettingsModal = ({
                     >
                       Apply Changes
                     </button>
+                  </motion.div>
+                )}
+
+                {activeTab === 'database' && (
+                  <motion.div
+                    key="database"
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    className="space-y-6"
+                  >
+                    <div>
+                      <h3 className={cn("text-xl font-bold mb-1", textColor)}>Database Configuration</h3>
+                      <p className={cn("text-sm", subTextColor)}>Connect your Supabase project to persist data.</p>
+                    </div>
+
+                    <div className={cn("p-6 rounded-2xl border flex items-center justify-between", itemBg, borderColor)}>
+                      <div className="flex items-center gap-4">
+                        <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", dbConfigured ? "bg-emerald-500/20 text-emerald-500" : "bg-amber-500/20 text-amber-500")}>
+                          <Database className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <p className={cn("text-sm font-bold", textColor)}>Supabase Status</p>
+                          <p className="text-xs text-slate-500">{dbConfigured ? "Connected & Operational" : "Not Configured"}</p>
+                        </div>
+                      </div>
+                      <div className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider", dbConfigured ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500")}>
+                        {dbConfigured ? "Online" : "Offline"}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className={cn("p-5 rounded-2xl border space-y-4", isDark ? "bg-slate-950/50" : "bg-slate-50")}>
+                        <h4 className={cn("text-sm font-bold flex items-center gap-2", textColor)}>
+                          <HelpCircle className="w-4 h-4 text-indigo-500" />
+                          How to find your credentials
+                        </h4>
+                        <ol className="text-xs space-y-3 text-slate-500 list-decimal pl-4">
+                          <li>Go to your <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">Supabase Dashboard</a>.</li>
+                          <li>Select your project and go to <strong>Project Settings</strong> (⚙️ gear icon).</li>
+                          <li>Navigate to <strong>API</strong> in the sidebar.</li>
+                          <li>Copy the <strong>Project URL</strong> and <strong>anon public</strong> key.</li>
+                          <li>For the backend, go to <strong>Project Settings</strong> → <strong>API</strong> and copy the <strong>service_role</strong> key.</li>
+                        </ol>
+                      </div>
+
+                      <div className={cn("p-5 rounded-2xl border space-y-3", `bg-${accentColor}-500/5 border-${accentColor}-500/10`)}>
+                        <h4 className={cn("text-sm font-bold flex items-center gap-2", textColor)}>
+                          <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                          Where to put them
+                        </h4>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          For security, credentials must be added to the platform's <strong>Secrets</strong> menu.
+                        </p>
+                        <div className="bg-slate-950/80 p-3 rounded-lg font-mono text-[10px] text-indigo-300 space-y-1">
+                          <p>1. Open ⚙️ Settings (Top Right)</p>
+                          <p>2. Go to "Secrets" tab</p>
+                          <p>3. Add the following keys:</p>
+                          <p className="text-white pl-2">VITE_SUPABASE_URL</p>
+                          <p className="text-white pl-2">VITE_SUPABASE_ANON_KEY</p>
+                          <p className="text-white pl-2">SUPABASE_SERVICE_ROLE_KEY</p>
+                        </div>
+                      </div>
+                    </div>
                   </motion.div>
                 )}
 
@@ -333,17 +473,19 @@ const SettingsModal = ({
                   </motion.div>
                 )}
 
-                {activeTab === 'general' && (
+
+
+                {activeTab === 'preferences' && (
                   <motion.div
-                    key="general"
+                    key="preferences"
                     initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10 }}
                     className="space-y-6"
                   >
                     <div>
-                      <h3 className={cn("text-xl font-bold mb-1", textColor)}>Preferences & Data</h3>
-                      <p className={cn("text-sm", subTextColor)}>Manage your interface and personal data.</p>
+                      <h3 className={cn("text-xl font-bold mb-1", textColor)}>Preferences</h3>
+                      <p className={cn("text-sm", subTextColor)}>Customize your experience and manage data.</p>
                     </div>
 
                     <div className="space-y-4">
@@ -417,18 +559,47 @@ const SettingsModal = ({
                         </button>
                       </div>
 
-                      <div className={cn("pt-4 border-t", borderColor)}>
-                        <h4 className={cn("text-sm font-medium mb-4", textColor)}>Data Management</h4>
-                        <button 
-                          onClick={exportData}
-                          className={cn("w-full flex items-center justify-center gap-3 p-4 rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border shadow-sm hover:shadow-md", inputBg, borderColor, textColor, "hover:bg-slate-200 dark:hover:bg-slate-700")}
-                        >
-                          <Download className="w-5 h-5 text-slate-400" />
-                          <div className="text-left">
-                            <p className="text-sm font-bold">Export History</p>
-                            <p className="text-[11px] text-slate-500">Download your quiz results as JSON</p>
-                          </div>
-                        </button>
+                      <div className={cn("pt-4 border-t space-y-3", borderColor)}>
+                        <h4 className={cn("text-sm font-medium mb-2", textColor)}>Data Management</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <button 
+                            onClick={exportData}
+                            className={cn("flex items-center gap-3 p-4 rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border shadow-sm hover:shadow-md", inputBg, borderColor, textColor, "hover:bg-slate-200 dark:hover:bg-slate-700")}
+                          >
+                            <Download className="w-5 h-5 text-slate-400" />
+                            <div className="text-left">
+                              <p className="text-sm font-bold">Export History</p>
+                              <p className="text-[11px] text-slate-500">Download results as JSON</p>
+                            </div>
+                          </button>
+
+                          <button 
+                            onClick={async () => {
+                              if (window.confirm('Are you sure you want to reset your daily usage? This is for testing purposes.')) {
+                                setIsResetting(true);
+                                await onResetUsage();
+                                setIsResetting(false);
+                                setResetSuccess(true);
+                                setTimeout(() => setResetSuccess(false), 3000);
+                              }
+                            }}
+                            disabled={isResetting}
+                            className={cn(
+                              "flex items-center gap-3 p-4 rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border shadow-sm hover:shadow-md",
+                              inputBg, borderColor, textColor, 
+                              "hover:bg-rose-500/10 hover:border-rose-500/30",
+                              isResetting && "opacity-50 cursor-not-allowed"
+                            )}
+                          >
+                            <RefreshCw className={cn("w-5 h-5 text-slate-400", isResetting && "animate-spin")} />
+                            <div className="text-left">
+                              <p className={cn("text-sm font-bold", resetSuccess ? "text-emerald-500" : "")}>
+                                {resetSuccess ? "Usage Reset!" : "Reset Usage"}
+                              </p>
+                              <p className="text-[11px] text-slate-500">Reset your daily MCQ quota</p>
+                            </div>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -442,9 +613,180 @@ const SettingsModal = ({
   );
 };
 
+const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => void, isDark: boolean, accentColor: string }) => {
+  const [isLogin, setIsLogin] = useState(true);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
+      const body = isLogin 
+        ? { username, password } 
+        : { username, password, fullName, email };
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Authentication failed');
+      }
+
+      onLogin(data.user);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const bgColor = isDark ? "bg-slate-950" : "bg-slate-50";
+  const cardBg = isDark ? "bg-slate-900/50" : "bg-white";
+  const borderColor = isDark ? "border-slate-800" : "border-slate-200";
+  const textColor = isDark ? "text-white" : "text-slate-900";
+  const subTextColor = isDark ? "text-slate-400" : "text-slate-500";
+  const inputBg = isDark ? "bg-slate-800" : "bg-slate-50";
+
+  return (
+    <div className={cn("min-h-screen flex items-center justify-center p-4", bgColor)}>
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={cn("w-full max-w-md p-8 rounded-[2.5rem] border shadow-2xl backdrop-blur-xl", cardBg, borderColor)}
+      >
+        <div className="text-center mb-8">
+          <div className={cn("w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg", `bg-${accentColor}-500`)}>
+            <Brain className="w-10 h-10 text-white" />
+          </div>
+          <h2 className={cn("text-3xl font-bold tracking-tight", textColor)}>
+            {isLogin ? 'Welcome Back' : 'Create Account'}
+          </h2>
+          <p className={cn("mt-2", subTextColor)}>
+            {isLogin ? 'Log in to access your quizzes' : 'Join the modern learning platform'}
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
+            <>
+              <div>
+                <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Full Name</label>
+                <input 
+                  type="text"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+                  placeholder="Milind Kshirsagar"
+                />
+              </div>
+              <div>
+                <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Email Address</label>
+                <input 
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+                  placeholder="milind@example.com"
+                />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Username</label>
+            <input 
+              type="text"
+              required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+              placeholder="milindk"
+            />
+          </div>
+
+          <div>
+            <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Password</label>
+            <input 
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+              placeholder="••••••••"
+            />
+          </div>
+
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 text-red-500 text-xs font-medium border border-red-500/20"
+            >
+              <AlertCircle className="w-4 h-4" />
+              {error}
+            </motion.div>
+          )}
+
+          <button 
+            type="submit"
+            disabled={isLoading}
+            className={cn(
+              "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 mt-4",
+              `bg-${accentColor}-500 text-white hover:bg-${accentColor}-600 shadow-${accentColor}-500/20`
+            )}
+          >
+            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (isLogin ? 'Sign In' : 'Create Account')}
+          </button>
+        </form>
+
+        <div className="mt-8 text-center">
+          <button 
+            onClick={() => setIsLogin(!isLogin)}
+            className={cn("text-sm font-medium hover:underline", `text-${accentColor}-500`)}
+          >
+            {isLogin ? "Don't have an account? Sign up" : "Already have an account? Log in"}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const DEFAULT_USER = {
+  username: 'guest',
+  email: 'guest@example.com',
+  full_name: 'Guest User',
+  bio: 'Welcome to Quiz Learner!',
+  api_key: '',
+  tier: 'pro' as const,
+  daily_usage: 0,
+  id: 'guest-id'
+};
+
 export default function App() {
-  const [state, setState] = useState<AppState>('landing');
+  const [state, setState] = useState<AppState>(() => {
+    const savedUser = localStorage.getItem('user_info');
+    return savedUser ? 'landing' : 'auth';
+  });
   const [analysis, setAnalysis] = useState<{ topics: string[], level: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ username: string, email: string, full_name?: string, bio?: string, api_key: string, tier: 'free' | 'pro', daily_usage: number } | null>(
+    localStorage.getItem('user_info') ? JSON.parse(localStorage.getItem('user_info')!) : DEFAULT_USER
+  );
   const [isDarkMode, setIsDarkMode] = useState(localStorage.getItem('theme') !== 'light');
   const [accentColor, setAccentColor] = useState(localStorage.getItem('accent_color') || 'indigo');
   const [notificationsEnabled, setNotificationsEnabled] = useState(localStorage.getItem('notifications') === 'true');
@@ -467,11 +809,6 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [showSettings, setShowSettings] = useState(false);
-
-  useEffect(() => {
-    fetchHistory();
-  }, []);
-
   const [userApiKey, setUserApiKey] = useState(() => {
     const saved = localStorage.getItem('user_gemini_api_key') || '';
     if (saved.startsWith('smk_')) {
@@ -485,13 +822,188 @@ export default function App() {
   const [parsingMode, setParsingMode] = useState<'start' | 'question' | 'page'>('start');
   const [parsingValue, setParsingValue] = useState('');
   const [parsingStartIndex, setParsingStartIndex] = useState('1');
+  const [isForgotLoading, setIsForgotLoading] = useState(false);
 
   const textColor = isDarkMode ? "text-white" : "text-slate-900";
   const subTextColor = isDarkMode ? "text-slate-400" : "text-slate-500";
 
+  useEffect(() => {
+    const syncUser = async () => {
+      if (currentUser && currentUser.username !== 'guest') {
+        try {
+          const res = await fetch(`/api/me?username=${encodeURIComponent(currentUser.username)}&clientDate=${encodeURIComponent(getLocalDateString())}`);
+          if (!res.ok) {
+            console.warn(`User sync failed with status: ${res.status}`);
+            return;
+          }
+          const contentType = res.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            console.warn(`User sync received non-JSON response: ${contentType}`);
+            return;
+          }
+          const data = await res.json();
+          const updatedUser = { ...currentUser, ...data };
+          setCurrentUser(updatedUser);
+          localStorage.setItem('user_info', JSON.stringify(updatedUser));
+        } catch (err: any) {
+          const errorMsg = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+          console.error("Failed to sync user info", errorMsg);
+        }
+      }
+    };
+    syncUser();
+    // Only run on mount to sync existing session
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+    
+    if (paymentStatus === 'success') {
+      const isMock = params.get('mock') === 'true';
+      // Refresh user info to get the new tier
+      if (currentUser) {
+        // For mock payments, we manually update the tier in the DB for the session
+        if (isMock) {
+          fetch('/api/upgrade', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: currentUser.username })
+          }).then(res => res.json()).then(data => {
+            if (data.success) {
+              const updatedUser = { ...currentUser, tier: 'pro' as const };
+              setCurrentUser(updatedUser);
+              localStorage.setItem('user_info', JSON.stringify(updatedUser));
+            }
+          });
+        } else {
+          // Real payment: refresh from DB
+          const updatedUser = { ...currentUser, tier: 'pro' as const };
+          setCurrentUser(updatedUser);
+          localStorage.setItem('user_info', JSON.stringify(updatedUser));
+        }
+      }
+      setError(isMock 
+        ? 'Demo Mode: Mock payment successful! Your account has been upgraded to Pro.' 
+        : 'Payment successful! Your account has been upgraded to Pro.');
+      // Clear the URL params
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (paymentStatus === 'cancel') {
+      setError('Payment cancelled. You can try again whenever you\'re ready.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [currentUser]);
 
+  const handleUpgrade = async () => {
+    if (!currentUser) return;
+    setIsForgotLoading(true);
+    try {
+      const res = await fetch('/api/create-razorpay-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: 1499 })
+      });
+      const order = await res.json();
+      
+      if (order.isMock) {
+        // Handle mock payment
+        const verifyRes = await fetch('/api/verify-razorpay-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            isMock: true,
+            username: currentUser.username
+          })
+        });
+        const verifyData = await verifyRes.json();
+        if (verifyData.success) {
+          setCurrentUser({...currentUser, tier: 'pro'});
+          setState('landing');
+          alert("Successfully upgraded to Pro!");
+        }
+        return;
+      }
 
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: order.currency,
+        name: "SMKTech Quiz Learner",
+        description: "Pro Subscription",
+        order_id: order.id,
+        handler: async function (response: any) {
+          const verifyRes = await fetch('/api/verify-razorpay-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              username: currentUser.username
+            })
+          });
+          const verifyData = await verifyRes.json();
+          if (verifyData.success) {
+            setCurrentUser({...currentUser, tier: 'pro'});
+            setState('landing');
+            alert("Successfully upgraded to Pro!");
+          } else {
+            setError("Payment verification failed.");
+          }
+        },
+        prefill: {
+          name: currentUser.full_name || currentUser.username,
+          email: currentUser.email,
+        },
+        theme: {
+          color: "#6366f1",
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+    } catch (err: any) {
+      console.error("Upgrade failed:", err.message || err);
+      setError("An error occurred. Please try again later.");
+    } finally {
+      setIsForgotLoading(false);
+    }
+  };
+
+  const handleResetUsage = async () => {
+    if (!currentUser) return;
+    try {
+      const res = await fetch('/api/usage/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: currentUser.username })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const updatedUser = { ...currentUser, daily_usage: 0 };
+        setCurrentUser(updatedUser);
+        localStorage.setItem('user_info', JSON.stringify(updatedUser));
+      }
+    } catch (err: any) {
+      console.error("Failed to reset usage", err.message || err);
+    }
+  };
+
+  const handleLogin = (user: any) => {
+    setCurrentUser(user);
+    localStorage.setItem('user_info', JSON.stringify(user));
+    localStorage.setItem('isLoggedIn', 'true');
+    setState('landing');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('isLoggedIn');
+    localStorage.removeItem('user_info');
+    setCurrentUser(DEFAULT_USER);
+    setState('auth');
+    setShowSettings(false);
+  };
 
   const exportHistory = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(history));
@@ -510,6 +1022,7 @@ export default function App() {
     const accuracy = Math.round((correct / selectedQuestions.length) * 100);
     
     const reportData = {
+      user: currentUser?.username,
       date: new Date().toLocaleString(),
       accuracy: `${accuracy}%`,
       correctAnswers: correct,
@@ -562,10 +1075,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (state === 'landing') {
+    if (state === 'landing' && currentUser) {
       fetchHistory();
     }
-  }, [state]);
+  }, [state, currentUser]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -576,18 +1089,28 @@ export default function App() {
   }, [isDarkMode]);
 
   const fetchHistory = async () => {
-    // History is now local-only in debug mode
-    const saved = localStorage.getItem('quiz_history');
-    if (saved) {
-      try {
-        setHistory(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse local history", e);
+    try {
+      const res = await fetch('/api/results');
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Received non-JSON response from server');
       }
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setHistory(data);
+      } else {
+        console.warn("History data is not an array:", data);
+        setHistory([]);
+      }
+    } catch (err: any) {
+      console.error("Error fetching history:", err.message || err);
+      setHistory([]);
     }
   };
 
   const onDrop = async (acceptedFiles: File[]) => {
+    if (!currentUser) return;
     const file = acceptedFiles[0];
     if (!file || file.type !== 'application/pdf') {
       setError("Please upload a valid PDF file.");
@@ -610,6 +1133,8 @@ export default function App() {
   };
 
   const startGeneration = async () => {
+    if (!currentUser) return;
+    
     setState('processing');
     setError(null);
     setAnalysis(null);
@@ -637,6 +1162,7 @@ export default function App() {
   });
 
   const nextRound = async () => {
+    if (!currentUser) return;
     setError(null);
     
     const baseStart = parseInt(parsingStartIndex) || 1;
@@ -674,6 +1200,8 @@ export default function App() {
   };
 
   const startQuiz = async (mode: number | 'all', roundIndex: number = 0, overrideQuestions?: MCQ[]) => {
+    if (!currentUser) return;
+    
     setQuizMode(mode);
     setCurrentRound(roundIndex);
     
@@ -768,20 +1296,22 @@ export default function App() {
         performanceSummary: getPerformanceSummary(accuracy),
         topics: analysis?.topics,
         level: analysis?.level,
-        detailedReport,
-        date: new Date().toISOString(),
-        id: Date.now()
+        detailedReport
       };
 
       setState('results');
 
-      // Save to local storage
-      const newHistory = [result, ...history].slice(0, 50);
-      setHistory(newHistory);
-      localStorage.setItem('quiz_history', JSON.stringify(newHistory));
+      // Save to DB
+      await fetch('/api/results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result)
+      }).catch(e => console.error("Failed to save result to server", e.message || e));
       
-    } catch (err) {
-      console.error("Error finishing quiz:", err);
+      // Refresh history to update dashboard stats
+      await fetchHistory().catch(e => console.error("Failed to fetch history", e.message || e));
+    } catch (err: any) {
+      console.error("Error finishing quiz:", err.message || err);
       setState('results');
     }
   };
@@ -795,12 +1325,109 @@ export default function App() {
 
   // --- Render Helpers ---
 
+  const renderTierSelection = () => (
+    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className={cn(
+          "w-full max-w-4xl grid md:grid-cols-2 gap-8 p-4",
+        )}
+      >
+        {/* Free Tier */}
+        <div className={cn(
+          "border rounded-3xl p-8 flex flex-col shadow-xl transition-all hover:shadow-2xl",
+          isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+        )}>
+          <div className="mb-6">
+            <span className="px-3 py-1 rounded-full bg-slate-500/10 text-slate-500 text-xs font-bold uppercase tracking-wider">Current Plan</span>
+            <h3 className={cn("text-3xl font-bold mt-4", isDarkMode ? "text-white" : "text-slate-900")}>Free Learner</h3>
+            <p className={cn("mt-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>Perfect for casual self-study.</p>
+          </div>
+          
+          <div className="text-4xl font-bold mb-8">₹0<span className="text-sm font-normal text-slate-500">/month</span></div>
+          
+          <ul className="space-y-4 mb-10 flex-1">
+            <li className="flex items-center gap-3 text-sm">
+              <Check className="w-5 h-5 text-emerald-500" />
+              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>200 MCQs per day</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm">
+              <Check className="w-5 h-5 text-emerald-500" />
+              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Basic explanations</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm">
+              <Check className="w-5 h-5 text-emerald-500" />
+              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Ads supported</span>
+            </li>
+          </ul>
+          
+          <button 
+            onClick={() => setState('landing')}
+            className={cn(
+              "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border shadow-sm",
+              isDarkMode ? "border-slate-700 text-slate-400 hover:bg-slate-800" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+            )}
+          >
+            Continue with Free
+          </button>
+        </div>
+
+        {/* Pro Tier */}
+        <div className={cn(
+          "border rounded-3xl p-8 flex flex-col shadow-2xl relative overflow-hidden transition-all hover:shadow-indigo-500/10",
+          isDarkMode ? "bg-slate-900 border-indigo-500/30" : "bg-white border-indigo-200"
+        )}>
+          <div className="absolute top-0 right-0 bg-indigo-500 text-white px-6 py-1 rounded-bl-2xl text-xs font-bold uppercase tracking-widest">Recommended</div>
+          
+          <div className="mb-6">
+            <span className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-500 text-xs font-bold uppercase tracking-wider">Power User</span>
+            <h3 className={cn("text-3xl font-bold mt-4", isDarkMode ? "text-white" : "text-slate-900")}>Pro Scholar</h3>
+            <p className={cn("mt-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>For serious exam preparation.</p>
+          </div>
+          
+          <div className="text-4xl font-bold mb-8">₹1,499<span className="text-sm font-normal text-slate-500">/month</span></div>
+          
+          <ul className="space-y-4 mb-10 flex-1">
+            <li className="flex items-center gap-3 text-sm">
+              <Check className="w-5 h-5 text-indigo-500" />
+              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>2,000 MCQs per day</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm">
+              <Check className="w-5 h-5 text-indigo-500" />
+              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Detailed AI explanations</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm">
+              <Check className="w-5 h-5 text-indigo-500" />
+              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Zero Ads</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm">
+              <Check className="w-5 h-5 text-indigo-500" />
+              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Priority generation</span>
+            </li>
+          </ul>
+          
+          <button 
+            onClick={handleUpgrade}
+            disabled={isForgotLoading}
+            className={cn(
+              "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2",
+              isForgotLoading ? "bg-indigo-500/50 text-white" : "bg-indigo-500 text-white hover:bg-indigo-600"
+            )}
+          >
+            {isForgotLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Upgrade to Pro'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+
   const renderLanding = () => {
     const totalQuizzes = Array.isArray(history) ? history.length : 0;
     const avgAccuracy = (Array.isArray(history) && history.length > 0)
       ? (history.reduce((acc, curr) => acc + (curr.accuracy || 0), 0) / history.length).toFixed(1)
       : 0;
-    const totalQuestions = Array.isArray(history) ? history.reduce((acc, curr) => acc + (curr.totalQuestions || 0), 0) : 0;
+    const totalQuestions = Array.isArray(history) ? history.reduce((acc, curr) => acc + (curr.total_questions || 0), 0) : 0;
 
     const getGreetingInfo = () => {
       const hour = new Date().getHours();
@@ -826,12 +1453,12 @@ export default function App() {
               </span>
             </div>
             <h1 className={cn("text-4xl md:text-5xl font-bold mb-3 tracking-tight", isDarkMode ? "text-white" : "text-slate-900")}>
-              Welcome back, <span className={cn("font-extrabold drop-shadow-sm", `text-${accentColor}-500`)} style={{ textShadow: isDarkMode ? `0 0 20px var(--tw-shadow-color)` : 'none' }}>Learner</span>!
+              Welcome back, <span className={cn("font-extrabold drop-shadow-sm", `text-${accentColor}-500`)} style={{ textShadow: isDarkMode ? `0 0 20px var(--tw-shadow-color)` : 'none' }}>{currentUser?.username || 'Learner'}</span>!
             </h1>
             <p className={cn("text-lg", isDarkMode ? "text-slate-400" : "text-slate-600")}>What would you like to master today?</p>
           </motion.div>
 
-          <div className="flex flex-wrap gap-4">
+          <div className="flex gap-4">
             <button 
               onClick={() => { fetchHistory(); setState('history'); }}
               className={cn(
@@ -873,6 +1500,56 @@ export default function App() {
               </div>
             </motion.div>
           ))}
+        </div>
+
+        {/* Usage & Ads Section */}
+        <div className="mb-12 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className={cn(
+            "lg:col-span-1 p-6 rounded-[2rem] border flex flex-col justify-between",
+            isDarkMode ? "bg-slate-900/50 border-slate-800" : "bg-white border-slate-200 shadow-sm"
+          )}>
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={cn("font-bold text-sm uppercase tracking-wider", isDarkMode ? "text-slate-500" : "text-slate-400")}>Daily Usage Limit</h3>
+                <span className={cn(
+                  "text-xs font-bold px-2 py-0.5 rounded uppercase tracking-tighter",
+                  currentUser?.tier === 'pro' ? "text-amber-500 bg-amber-500/10" : "text-blue-500 bg-blue-500/10"
+                )}>
+                  {currentUser?.tier === 'pro' ? 'Pro Tier' : 'Free Tier'}
+                </span>
+              </div>
+              <div className="flex items-end gap-2 mb-2">
+                <span className={cn("text-3xl font-bold", isDarkMode ? "text-white" : "text-slate-900")}>
+                  {currentUser?.daily_usage || 0}
+                  <span className="text-slate-500 text-xl font-normal mx-1">/</span>
+                  <span className="text-slate-500 text-xl font-normal">
+                    {currentUser?.tier === 'pro' ? 500 : 50}
+                  </span>
+                </span>
+                <span className="text-slate-500 text-sm mb-1">Questions</span>
+              </div>
+            </div>
+            <div className="mt-6 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-bold text-emerald-500 uppercase tracking-wider">Limit Resets Daily</span>
+            </div>
+          </div>
+
+          <div className={cn(
+            "lg:col-span-2 p-6 rounded-[2rem] border flex items-center justify-center relative overflow-hidden group cursor-pointer",
+            isDarkMode ? "bg-slate-900/50 border-slate-800" : "bg-slate-50 border-slate-200 shadow-sm"
+          )}>
+            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="text-center relative z-10">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Sponsored Advertisement</p>
+              <h4 className={cn("text-xl font-bold mb-1", isDarkMode ? "text-slate-300" : "text-slate-700")}>Master Your Exams with SMKTech Pro</h4>
+              <p className="text-sm text-slate-500">Get unlimited access, detailed explanations, and zero ads.</p>
+              <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-500/20 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] hover:bg-indigo-600">
+                Learn More <ExternalLink className="w-3 h-3" />
+              </div>
+            </div>
+            <div className="absolute top-2 right-4 text-[8px] font-bold text-slate-500 uppercase">Ad</div>
+          </div>
         </div>
 
         <div className="max-w-4xl mx-auto">
@@ -1146,6 +1823,15 @@ export default function App() {
               <LayoutDashboard className={cn("w-5 h-5", `text-${accentColor}-500`)} />
               Quiz Mode
             </h3>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Remaining</span>
+              <span className={cn(
+                "px-2 py-0.5 rounded-md text-[10px] font-bold",
+                isDarkMode ? "bg-slate-800 text-slate-300" : "bg-slate-100 text-slate-600"
+              )}>
+                {Math.max(0, (currentUser?.tier === 'pro' ? 500 : 50) - (currentUser?.daily_usage || 0))} Left
+              </span>
+            </div>
           </div>
           <div className="flex flex-col gap-3">
             {[
@@ -1721,14 +2407,13 @@ export default function App() {
   };
 
   const renderHistory = () => {
-    const historyArray = Array.isArray(history) ? history : [];
-    const filteredHistory = historyArray.filter(item => 
+    const filteredHistory = history.filter(item => 
       item.accuracy.toString().includes(historySearch) || 
       new Date(item.created_at).toLocaleDateString().includes(historySearch) ||
       (item.level && item.level.toLowerCase().includes(historySearch.toLowerCase()))
     );
 
-    const chartData = [...historyArray].reverse().map((item, i) => ({
+    const chartData = [...history].reverse().map((item, i) => ({
       name: `Quiz ${i + 1}`,
       accuracy: item.accuracy
     }));
@@ -1805,10 +2490,10 @@ export default function App() {
               <p className="text-slate-500">No quiz history matches your search.</p>
             </div>
           ) : (
-            filteredHistory.map((item, index) => {
+            filteredHistory.map((item) => {
               const topics = item.topics ? (typeof item.topics === 'string' ? JSON.parse(item.topics) : item.topics) : [];
               return (
-                <div key={item.id || index} className={cn(
+                <div key={item.id} className={cn(
                   "p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between group transition-all border gap-4",
                   isDarkMode 
                     ? "bg-slate-900 border-slate-800 hover:border-indigo-500/50" 
@@ -1995,12 +2680,27 @@ export default function App() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
               <Brain className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-bold tracking-tight">QuizNova</span>
+            <span className="text-xl font-bold tracking-tight">Quiz Learner</span>
           </div>
 
           <div className="flex items-center gap-4">
             <SettingsButton onClick={() => setShowSettings(true)} />
             <ThemeToggle isDark={isDarkMode} toggle={() => setIsDarkMode(!isDarkMode)} />
+            {state !== 'auth' && (
+              <button
+                onClick={handleLogout}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl border transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] font-medium text-sm",
+                  isDarkMode 
+                    ? "bg-white/5 border-white/10 hover:bg-white/10 text-red-400 hover:text-red-300" 
+                    : "bg-white border-slate-200 hover:bg-slate-50 text-red-500 hover:text-red-600 shadow-sm"
+                )}
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden md:inline">Sign Out</span>
+              </button>
+            )}
           </div>
         </div>
       </nav>
@@ -2011,13 +2711,17 @@ export default function App() {
         onClose={() => setShowSettings(false)} 
         currentKey={userApiKey}
         onSave={saveApiKey}
+        onLogout={handleLogout}
+        user={currentUser}
         isDark={isDarkMode}
         accentColor={accentColor}
         notifications={notificationsEnabled}
         onToggleNotifications={toggleNotifications}
         exportData={exportHistory}
+        onUpgrade={() => { setShowSettings(false); setState('tier_selection'); }}
         history={history}
         onUpdateAccentColor={updateAccentColor}
+        onResetUsage={handleResetUsage}
       />
 
       {/* Main Content */}
@@ -2036,6 +2740,8 @@ export default function App() {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.3 }}
           >
+            {state === 'auth' && <AuthScreen onLogin={handleLogin} isDark={isDarkMode} accentColor={accentColor} />}
+            {state === 'tier_selection' && renderTierSelection()}
             {state === 'landing' && renderLanding()}
             {state === 'parsing_config' && renderParsingConfig()}
             {state === 'processing' && renderProcessing()}

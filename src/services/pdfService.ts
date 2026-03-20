@@ -21,7 +21,7 @@ export async function extractTextFromPDF(file: File): Promise<string[]> {
 
     return pages;
   } catch (error: any) {
-    console.error("PDF Extraction Error:", error);
+    console.error("PDF Extraction Error:", error.message || error);
     throw new Error("Failed to read the PDF file. It might be corrupted or protected.");
   }
 }
