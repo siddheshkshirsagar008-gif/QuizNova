@@ -110,7 +110,7 @@ async function startServer() {
       }
 
       try {
-        // Check if user exists
+        // Check if username exists
         const { data: existingUser } = await supabase
           .from("users")
           .select("username")
@@ -119,6 +119,17 @@ async function startServer() {
 
         if (existingUser) {
           return res.status(400).json({ error: "Username already taken" });
+        }
+
+        // Check if email exists
+        const { data: existingEmail } = await supabase
+          .from("users")
+          .select("email")
+          .eq("email", email)
+          .maybeSingle();
+
+        if (existingEmail) {
+          return res.status(400).json({ error: "Email address already in use" });
         }
 
         // Hash password
