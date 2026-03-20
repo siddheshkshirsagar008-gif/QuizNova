@@ -501,23 +501,27 @@ async function startServer() {
         
         if (error || !profile) {
           // If user doesn't exist, allow initial usage but don't track
-          return res.json({ success: true, newUsage: requestedCount, limit: 50 });
+          return res.json({ success: true, allowedCount: requestedCount, newUsage: requestedCount, limit: 50 });
         }
 
         const limit = profile.tier === 'pro' ? 500 : 50;
         const currentUsage = profile.daily_usage || 0;
+        const remaining = Math.max(0, limit - currentUsage);
 
-        if (currentUsage + requestedCount > limit) {
+        if (remaining <= 0) {
           return res.json({ 
             success: false, 
-            message: `Daily limit reached (${currentUsage}/${limit}). Upgrade to Pro for more!`,
+            message: `Daily limit reached (${currentUsage}/${limit}). Try again tomorrow or upgrade to Pro!`,
             newUsage: currentUsage,
             limit
           });
         }
 
+        // If requested is more than remaining, allow only the remaining amount
+        const allowedCount = Math.min(requestedCount, remaining);
+        const newUsage = currentUsage + allowedCount;
+
         // Update usage
-        const newUsage = currentUsage + requestedCount;
         const { error: updateError } = await supabase
           .from('users')
           .update({ daily_usage: newUsage })
@@ -525,11 +529,11 @@ async function startServer() {
 
         if (updateError) throw updateError;
 
-        res.json({ success: true, newUsage, limit });
+        res.json({ success: true, allowedCount, newUsage, limit });
       } catch (err: any) {
         console.error("Usage check error:", err.message || err);
         // Fallback to success if DB fails, but log it
-        res.json({ success: true, newUsage: 0, limit: 50, warning: "Database connection issue" });
+        res.json({ success: true, allowedCount: count, newUsage: 0, limit: 50, warning: "Database connection issue" });
       }
     });
 

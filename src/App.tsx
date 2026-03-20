@@ -991,6 +991,30 @@ export default function App() {
     }
   };
 
+  const checkUsage = async (count: number) => {
+    if (!currentUser) return 0;
+    try {
+      const res = await fetch('/api/usage/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: currentUser.username, count })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const updatedUser = { ...currentUser, daily_usage: data.newUsage };
+        setCurrentUser(updatedUser);
+        localStorage.setItem('user_info', JSON.stringify(updatedUser));
+        return data.allowedCount;
+      } else {
+        setError(data.message);
+        return 0;
+      }
+    } catch (err: any) {
+      console.error("Usage check failed:", err.message || err);
+      return count; // Fallback to allow usage if server is down
+    }
+  };
+
   const handleLogin = (user: any) => {
     setCurrentUser(user);
     localStorage.setItem('user_info', JSON.stringify(user));
@@ -1144,7 +1168,21 @@ export default function App() {
     setAnalysis(null);
 
     try {
-      const result = await generateMCQsFromConceptText(fullTextPages, ROUND_SIZE, {
+      // Check usage first
+      const allowed = await checkUsage(ROUND_SIZE);
+      if (allowed <= 0) {
+        setState('parsing_config');
+        return;
+      }
+
+      if (allowed < ROUND_SIZE) {
+        // Show a temporary message about partial generation
+        const msg = `Daily limit almost reached. Generating only the remaining ${allowed} questions.`;
+        setError(msg);
+        setTimeout(() => setError(null), 5000);
+      }
+
+      const result = await generateMCQsFromConceptText(fullTextPages, allowed, {
         mode: parsingMode,
         value: parsingValue,
         startIndex: parseInt(parsingStartIndex) || 1
@@ -1176,6 +1214,19 @@ export default function App() {
     if (questions.length < nextStart + ROUND_SIZE - 1) {
       setIsGeneratingMore(true);
       try {
+        // Check usage first
+        const allowed = await checkUsage(ROUND_SIZE);
+        if (allowed <= 0) {
+          setIsGeneratingMore(false);
+          return;
+        }
+
+        if (allowed < ROUND_SIZE) {
+          const msg = `Daily limit almost reached. Generating only the remaining ${allowed} questions.`;
+          setError(msg);
+          setTimeout(() => setError(null), 5000);
+        }
+
         let textToProcess = fullText;
         if (parsingMode === 'page') {
           const pageNum = parseInt(parsingValue || "1");
@@ -1184,7 +1235,7 @@ export default function App() {
           }
         }
 
-        const nextBatch = await generateMCQsFromText(textToProcess, nextStart, ROUND_SIZE, baseStart);
+        const nextBatch = await generateMCQsFromText(textToProcess, nextStart, allowed, baseStart);
         if (nextBatch.length > 0) {
           const updatedQuestions = [...questions, ...nextBatch];
           setQuestions(updatedQuestions);
