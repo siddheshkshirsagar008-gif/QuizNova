@@ -76,6 +76,7 @@ interface QuizResult {
   totalTime: number;
   avgTimePerQuestion: number;
   performanceSummary: string;
+  username?: string;
   date?: string;
   topics?: string[];
   level?: string;
@@ -1090,7 +1091,10 @@ export default function App() {
 
   const fetchHistory = async () => {
     try {
-      const res = await fetch('/api/results');
+      const url = currentUser?.username 
+        ? `/api/results?username=${encodeURIComponent(currentUser.username)}`
+        : '/api/results';
+      const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const contentType = res.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
@@ -1296,19 +1300,30 @@ export default function App() {
         performanceSummary: getPerformanceSummary(accuracy),
         topics: analysis?.topics,
         level: analysis?.level,
-        detailedReport
+        detailedReport,
+        username: currentUser?.username
       };
 
       setState('results');
 
       // Save to DB
-      await fetch('/api/results', {
+      console.log("Saving quiz result to DB:", result);
+      const res = await fetch('/api/results', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(result)
-      }).catch(e => console.error("Failed to save result to server", e.message || e));
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+        console.error("Failed to save result to server:", res.status, errorData);
+      } else {
+        const data = await res.json();
+        console.log("Successfully saved result with ID:", data.id);
+      }
       
       // Refresh history to update dashboard stats
+      console.log("Refreshing history...");
       await fetchHistory().catch(e => console.error("Failed to fetch history", e.message || e));
     } catch (err: any) {
       console.error("Error finishing quiz:", err.message || err);

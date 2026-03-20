@@ -209,8 +209,33 @@ async function startServer() {
       }
     });
 
+    app.get("/api/debug/schema", async (req, res) => {
+      const supabase = getSupabase();
+      if (!supabase) return res.status(500).json({ error: "Supabase not configured" });
+
+      try {
+        const { data, error } = await supabase.rpc('get_table_columns', { table_name: 'quiz_history' });
+        
+        // If RPC fails (likely because it doesn't exist), try querying information_schema
+        if (error) {
+          const { data: columns, error: infoError } = await supabase
+            .from('information_schema.columns')
+            .select('column_name, data_type')
+            .eq('table_name', 'quiz_history');
+          
+          if (infoError) throw infoError;
+          return res.json({ table: 'quiz_history', columns });
+        }
+        
+        res.json({ table: 'quiz_history', columns: data });
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
     // API Routes
     app.post("/api/results", async (req, res) => {
+      console.log("Received quiz result save request:", JSON.stringify(req.body, null, 2));
       const {
         totalQuestions,
         attempted,
@@ -226,50 +251,69 @@ async function startServer() {
         username
       } = req.body;
 
+      if (!username) {
+        console.error("Save result failed: No username provided in request body");
+        return res.status(400).json({ error: "Username is required" });
+      }
+
       try {
+        console.log(`Looking up profile for username: ${username}`);
         const { data: profile, error: profileError } = await supabase
           .from('users')
           .select('id')
-          .eq('username', username || '')
+          .eq('username', username)
           .single();
 
         if (profileError || !profile) {
+          console.error(`User profile not found for username: ${username}`, profileError);
           return res.status(404).json({ error: "User profile not found" });
         }
 
+        console.log(`Found profile ID: ${profile.id}. Inserting quiz history...`);
+        
+        const insertData = {
+          user_id: profile.id,
+          title: `Quiz on ${topics?.[0] || 'General Topic'}`,
+          total_questions: totalQuestions,
+          attempted: attempted,
+          correct: correct,
+          wrong: wrong,
+          accuracy: accuracy,
+          total_time: totalTime,
+          avg_time_per_question: avgTimePerQuestion,
+          performance_summary: performanceSummary,
+          topics: topics || [],
+          level: level || '',
+          detailed_report: detailedReport || []
+        };
+
+        console.log("Attempting insert with data:", JSON.stringify(insertData, null, 2));
+
         const { data, error } = await supabase
           .from('quiz_history')
-          .insert({
-            user_id: profile.id,
-            title: `Quiz on ${topics?.[0] || 'General Topic'}`,
-            total_questions: totalQuestions,
-            attempted,
-            correct,
-            wrong,
-            accuracy,
-            total_time: totalTime,
-            avg_time_per_question: avgTimePerQuestion,
-            performance_summary: performanceSummary,
-            topics: topics || [],
-            level: level || '',
-            detailed_report: detailedReport || []
-          })
+          .insert([insertData])
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error("Supabase insert error:", error);
+          throw error;
+        }
 
+        console.log("Successfully saved quiz result with ID:", data.id);
         res.json({ id: data.id });
       } catch (err: any) {
-        console.error("Error saving result:", err.message || err);
-        res.status(500).json({ error: "Failed to save result" });
+        console.error("Error saving result exception:", err.message || err);
+        res.status(500).json({ error: "Failed to save result", details: err.message });
       }
     });
 
     app.get("/api/results", async (req, res) => {
       const { username } = req.query;
+      console.log(`Fetching quiz results for username: ${username || 'all'}`);
       
       if (!getSupabase()) {
+        console.warn("Supabase not configured, returning empty history");
         return res.json([]);
       }
       
@@ -284,8 +328,37 @@ async function startServer() {
 
         const { data, error } = await query.order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+          console.error("Supabase fetch history error:", error);
+          // Fallback: try fetching without the join if it fails (maybe relationship not set)
+          if (username) {
+             console.log("Attempting fallback fetch by looking up user ID first...");
+             const { data: user } = await supabase.from('users').select('id').eq('username', username).single();
+             if (user) {
+               const { data: fallbackData, error: fallbackError } = await supabase
+                 .from('quiz_history')
+                 .select('*')
+                 .eq('user_id', user.id)
+                 .order('created_at', { ascending: false });
+               
+               if (!fallbackError) {
+                 const formatted = fallbackData.map((r: any) => ({
+                   ...r,
+                   username: username,
+                   totalQuestions: r.total_questions,
+                   totalTime: r.total_time,
+                   avgTimePerQuestion: r.avg_time_per_question,
+                   performanceSummary: r.performance_summary,
+                   detailedReport: r.detailed_report
+                 }));
+                 return res.json(formatted);
+               }
+             }
+          }
+          throw error;
+        }
 
+        console.log(`Successfully fetched ${data?.length || 0} history records`);
         const formattedData = data.map((r: any) => ({
           ...r,
           username: r.users.username,
@@ -298,8 +371,8 @@ async function startServer() {
 
         res.json(formattedData);
       } catch (err: any) {
-        console.error("Error fetching results:", err.message || err);
-        res.status(500).json({ error: "Failed to fetch results" });
+        console.error("Error fetching results exception:", err.message || err);
+        res.status(500).json({ error: "Failed to fetch results", details: err.message });
       }
     });
 
