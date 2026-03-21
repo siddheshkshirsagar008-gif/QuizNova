@@ -615,37 +615,119 @@ const SettingsModal = ({
 };
 
 const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => void, isDark: boolean, accentColor: string }) => {
-  const [isLogin, setIsLogin] = useState(true);
+  const [step, setStep] = useState<'login' | 'email' | 'otp' | 'profile'>('login');
+  const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
-
     try {
-      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
-      const body = isLogin 
-        ? { username, password } 
-        : { username, password, fullName, email };
-
-      const res = await fetch(endpoint, {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify({ username, password })
       });
-
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onLogin(data.user);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Authentication failed');
+  const handleSendOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSuccessMessage(data.message);
+      setStep('otp');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setIsResending(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSuccessMessage(data.message);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      
+      if (data.needsProfile) {
+        setStep('profile');
+        setSuccessMessage(data.message);
+      } else {
+        // If user already exists, we should probably tell them to login with password
+        // as per the user's request "login the username and password will be required only"
+        setError("Account already exists. Please login with your username and password.");
+        setStep('login');
       }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  const handleCompleteProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/complete-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, username, fullName, password, otp })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
       onLogin(data.user);
     } catch (err: any) {
       setError(err.message);
@@ -673,96 +755,223 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
             <Brain className="w-10 h-10 text-white" />
           </div>
           <h2 className={cn("text-3xl font-bold tracking-tight", textColor)}>
-            {isLogin ? 'Welcome Back' : 'Create Account'}
+            {step === 'login' ? 'Welcome Back' : step === 'email' ? 'Create Account' : step === 'otp' ? 'Verify' : 'Profile'}
           </h2>
           <p className={cn("mt-2", subTextColor)}>
-            {isLogin ? 'Log in to access your quizzes' : 'Join the modern learning platform'}
+            {step === 'login' ? 'Sign in to your account' :
+             step === 'email' ? 'Start your journey with us' : 
+             step === 'otp' ? "We've sent a code to your inbox" : 
+             'Tell us a bit about yourself'}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
-            <>
-              <div>
-                <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Full Name</label>
-                <input 
-                  type="text"
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
-                  placeholder="Milind Kshirsagar"
-                />
-              </div>
-              <div>
-                <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Email Address</label>
-                <input 
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
-                  placeholder="milind@example.com"
-                />
-              </div>
-            </>
-          )}
-
-          <div>
-            <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Username</label>
-            <input 
-              type="text"
-              required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
-              placeholder="milindk"
-            />
-          </div>
-
-          <div>
-            <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Password</label>
-            <input 
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
-              placeholder="••••••••"
-            />
-          </div>
-
-          {error && (
-            <motion.div 
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 text-red-500 text-xs font-medium border border-red-500/20"
+        {step === 'login' && (
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Username</label>
+              <input 
+                type="text"
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+                placeholder="milindk"
+              />
+            </div>
+            <div>
+              <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Password</label>
+              <input 
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+                placeholder="••••••••"
+              />
+            </div>
+            <button 
+              type="submit"
+              disabled={isLoading}
+              className={cn(
+                "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 mt-4",
+                `bg-${accentColor}-500 text-white hover:bg-${accentColor}-600 shadow-${accentColor}-500/20`
+              )}
             >
-              <AlertCircle className="w-4 h-4" />
-              {error}
-            </motion.div>
-          )}
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+            </button>
+            <p className={cn("text-center text-sm mt-6", subTextColor)}>
+              Don't have an account?{" "}
+              <button 
+                type="button"
+                onClick={() => {
+                  setStep('email');
+                  setError(null);
+                  setSuccessMessage(null);
+                }}
+                className={cn("font-bold hover:underline", `text-${accentColor}-500`)}
+              >
+                Sign Up
+              </button>
+            </p>
+          </form>
+        )}
 
-          <button 
-            type="submit"
-            disabled={isLoading}
-            className={cn(
-              "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 mt-4",
-              `bg-${accentColor}-500 text-white hover:bg-${accentColor}-600 shadow-${accentColor}-500/20`
-            )}
-          >
-            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (isLogin ? 'Sign In' : 'Create Account')}
-          </button>
-        </form>
+        {step === 'email' && (
+          <form onSubmit={handleSendOTP} className="space-y-4">
+            <div>
+              <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Email Address</label>
+              <input 
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+                placeholder="milind@example.com"
+              />
+            </div>
+            <button 
+              type="submit"
+              disabled={isLoading}
+              className={cn(
+                "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 mt-4",
+                `bg-${accentColor}-500 text-white hover:bg-${accentColor}-600 shadow-${accentColor}-500/20`
+              )}
+            >
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Send Code'}
+            </button>
+            <p className={cn("text-center text-sm mt-6", subTextColor)}>
+              Already have an account?{" "}
+              <button 
+                type="button"
+                onClick={() => {
+                  setStep('login');
+                  setError(null);
+                  setSuccessMessage(null);
+                }}
+                className={cn("font-bold hover:underline", `text-${accentColor}-500`)}
+              >
+                Sign In
+              </button>
+            </p>
+          </form>
+        )}
 
-        <div className="mt-8 text-center">
-          <button 
-            onClick={() => setIsLogin(!isLogin)}
-            className={cn("text-sm font-medium hover:underline", `text-${accentColor}-500`)}
+        {step === 'otp' && (
+          <form onSubmit={handleVerifyOTP} className="space-y-6">
+            <div className={cn("p-4 rounded-2xl border border-dashed flex flex-col items-center text-center gap-2", borderColor)}>
+              <p className={cn("text-xs", subTextColor)}>Code sent to <span className="font-medium text-slate-400">{email}</span></p>
+            </div>
+            <div>
+              <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Verification Code</label>
+              <input 
+                type="text"
+                required
+                maxLength={6}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                className={cn("w-full px-5 py-4 rounded-2xl border focus:outline-none focus:ring-2 transition-all text-center text-2xl font-bold tracking-[0.5em]", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+                placeholder="000000"
+              />
+            </div>
+            <button 
+              type="submit"
+              disabled={isLoading || otp.length !== 6}
+              className={cn(
+                "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-lg flex items-center justify-center gap-2",
+                `bg-${accentColor}-500 text-white hover:bg-${accentColor}-600 disabled:opacity-50`
+              )}
+            >
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify Code'}
+            </button>
+            <div className="flex flex-col gap-2">
+              <button 
+                type="button"
+                onClick={handleResendOTP}
+                disabled={isResending}
+                className={cn("text-sm font-medium hover:underline", `text-${accentColor}-500`)}
+              >
+                {isResending ? "Sending..." : "Didn't get a code? Resend"}
+              </button>
+              <button 
+                type="button"
+                onClick={() => setStep('email')}
+                className={cn("text-sm font-medium opacity-60 hover:opacity-100", textColor)}
+              >
+                Change Email
+              </button>
+            </div>
+          </form>
+        )}
+
+        {step === 'profile' && (
+          <form onSubmit={handleCompleteProfile} className="space-y-4">
+            <div>
+              <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Full Name</label>
+              <input 
+                type="text"
+                required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+                placeholder="Milind Kshirsagar"
+              />
+            </div>
+            <div>
+              <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Username</label>
+              <input 
+                type="text"
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+                placeholder="milindk"
+              />
+            </div>
+            <div>
+              <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Password</label>
+              <input 
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+                placeholder="••••••••"
+              />
+            </div>
+            <button 
+              type="submit"
+              disabled={isLoading}
+              className={cn(
+                "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 mt-4",
+                `bg-${accentColor}-500 text-white hover:bg-${accentColor}-600`
+              )}
+            >
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Complete Setup'}
+            </button>
+          </form>
+        )}
+
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mt-4 flex items-center gap-2 p-3 rounded-xl bg-red-500/10 text-red-500 text-xs font-medium border border-red-500/20"
           >
-            {isLogin ? "Don't have an account? Sign up" : "Already have an account? Log in"}
-          </button>
-        </div>
+            <AlertCircle className="w-4 h-4" />
+            {error}
+          </motion.div>
+        )}
+
+        {successMessage && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mt-4 flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 text-emerald-500 text-xs font-medium border border-emerald-500/20"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            {successMessage}
+          </motion.div>
+        )}
       </motion.div>
     </div>
   );

@@ -7,6 +7,7 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -100,9 +101,49 @@ async function startServer() {
       res.json({ status: "ok", nodeVersion: process.version });
     });
 
+    // Email Transporter
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+
+    const sendOTPEmail = async (email: string, otp: string, username: string) => {
+      const mailOptions = {
+        from: `"Quiz AI" <${process.env.SMTP_USER}>`,
+        to: email,
+        subject: 'Your Verification Code',
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: white;">
+            <h2 style="color: #1e293b; text-align: center; font-size: 24px;">Welcome to Quiz AI!</h2>
+            <p style="color: #475569; line-height: 1.6; text-align: center;">Hi ${username}, use the code below to verify your email address and complete your registration.</p>
+            <div style="margin: 32px 0; text-align: center;">
+              <div style="display: inline-block; padding: 16px 32px; background-color: #f1f5f9; border-radius: 12px; font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #3b82f6; border: 1px solid #e2e8f0;">
+                ${otp}
+              </div>
+            </div>
+            <p style="color: #64748b; font-size: 14px; text-align: center;">This code will expire in 10 minutes.</p>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+            <p style="color: #94a3b8; font-size: 12px; text-align: center;">If you didn't create an account, you can safely ignore this email.</p>
+          </div>
+        `,
+      };
+
+      try {
+        await transporter.sendMail(mailOptions);
+        console.log(`OTP email sent to ${email}`);
+      } catch (error) {
+        console.error('Error sending OTP email:', error);
+      }
+    };
+
     // Auth Endpoints
-    app.post("/api/auth/signup", async (req, res) => {
-      const { username, password, fullName, email } = req.body;
+    app.post("/api/auth/send-otp", async (req, res) => {
+      const { email } = req.body;
       const supabase = getSupabase();
 
       if (!supabase) {
@@ -110,55 +151,138 @@ async function startServer() {
       }
 
       try {
-        // Check if username exists
+        // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // Store OTP in pending_users (using email as key)
+        // We delete first to avoid conflict issues if constraints aren't set up
+        await supabase.from("pending_users").delete().eq("email", email);
+        
+        const { error: pendingError } = await supabase
+          .from("pending_users")
+          .insert([{
+            email,
+            verification_token: otp,
+            username: `temp_${Date.now()}`, // Dummy username if required by schema
+            password: 'pending_otp_verification', // Satisfy NOT NULL constraint
+            full_name: 'Pending Verification' // Satisfy NOT NULL constraint if it exists
+          }]);
+
+        if (pendingError) throw pendingError;
+
+        // Send OTP email
+        await sendOTPEmail(email, otp, "User");
+
+        res.json({ 
+          message: "Verification code sent! Please check your inbox." 
+        });
+      } catch (error: any) {
+        console.error("Send OTP error details:", error);
+        res.status(500).json({ error: error.message || "Failed to send OTP" });
+      }
+    });
+
+    app.post("/api/auth/verify-otp", async (req, res) => {
+      const { email, otp } = req.body;
+      const supabase = getSupabase();
+
+      if (!supabase) return res.status(500).json({ error: "Database not configured" });
+
+      try {
+        const { data: pendingUser, error } = await supabase
+          .from("pending_users")
+          .select("*")
+          .eq("email", email)
+          .eq("verification_token", otp)
+          .maybeSingle();
+
+        if (error || !pendingUser) {
+          return res.status(400).json({ error: "Invalid or expired verification code" });
+        }
+
+        // Check if user already exists in users table
         const { data: existingUser } = await supabase
+          .from("users")
+          .select("*")
+          .eq("email", email)
+          .maybeSingle();
+
+        if (existingUser) {
+          // User exists, log them in
+          // Delete from pending
+          await supabase.from("pending_users").delete().eq("email", email);
+          
+          const { password: _, ...userWithoutPassword } = existingUser;
+          return res.json({ user: userWithoutPassword, message: "Logged in successfully!" });
+        }
+
+        // User doesn't exist, they need to complete their profile
+        res.json({ needsProfile: true, message: "OTP verified. Please complete your profile." });
+      } catch (error: any) {
+        console.error("Verification error:", error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.post("/api/auth/complete-profile", async (req, res) => {
+      const { email, username, fullName, password, otp } = req.body;
+      const supabase = getSupabase();
+
+      if (!supabase) return res.status(500).json({ error: "Database not configured" });
+
+      try {
+        // Verify OTP again to be safe
+        const { data: pendingUser, error } = await supabase
+          .from("pending_users")
+          .select("*")
+          .eq("email", email)
+          .eq("verification_token", otp)
+          .maybeSingle();
+
+        if (error || !pendingUser) {
+          return res.status(400).json({ error: "Verification session expired. Please start over." });
+        }
+
+        // Check if username is taken
+        const { data: existingUsername } = await supabase
           .from("users")
           .select("username")
           .eq("username", username)
           .maybeSingle();
 
-        if (existingUser) {
+        if (existingUsername) {
           return res.status(400).json({ error: "Username already taken" });
-        }
-
-        // Check if email exists
-        const { data: existingEmail } = await supabase
-          .from("users")
-          .select("email")
-          .eq("email", email)
-          .maybeSingle();
-
-        if (existingEmail) {
-          return res.status(400).json({ error: "Email address already in use" });
         }
 
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create user
-        const { data, error } = await supabase
+        // Create actual user
+        const { data: newUser, error: insertError } = await supabase
           .from("users")
           .insert([{
             username,
-            password: hashedPassword,
             full_name: fullName,
             email,
+            password: hashedPassword,
             tier: 'free',
             daily_usage: 0,
-            api_key: ''
+            api_key: '',
+            is_verified: true
           }])
           .select()
           .single();
 
-        if (error) throw error;
+        if (insertError) throw insertError;
 
-        // Remove password from response
-        const { password: _, ...userWithoutPassword } = data;
-        res.json({ user: userWithoutPassword });
+        // Delete from pending
+        await supabase.from("pending_users").delete().eq("email", email);
+
+        const { password: _, ...userWithoutPassword } = newUser;
+        res.json({ user: userWithoutPassword, message: "Profile created successfully!" });
       } catch (error: any) {
-        console.error("Signup error details:", JSON.stringify(error, null, 2));
-        const errorMessage = error.message || error.details || "An unexpected error occurred during signup";
-        res.status(500).json({ error: errorMessage });
+        console.error("Complete profile error:", error);
+        res.status(500).json({ error: error.message });
       }
     });
 
@@ -196,6 +320,39 @@ async function startServer() {
       }
     });
 
+    app.post("/api/auth/signup", async (req, res) => {
+      res.status(410).json({ error: "Please use the OTP-based signup flow." });
+    });
+
+    app.post("/api/auth/resend-verification", async (req, res) => {
+      const { email } = req.body;
+      const supabase = getSupabase();
+
+      if (!supabase) return res.status(500).json({ error: "Database not configured" });
+
+      try {
+        // Generate new 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        // Update OTP in pending_users
+        await supabase.from("pending_users").delete().eq("email", email);
+        await supabase.from("pending_users").insert([{
+          email,
+          verification_token: otp,
+          username: `temp_${Date.now()}`,
+          password: 'pending_otp_verification',
+          full_name: 'Pending Verification'
+        }]);
+
+        await sendOTPEmail(email, otp, "User");
+
+        res.json({ message: "New verification code sent! Please check your inbox." });
+      } catch (error: any) {
+        console.error("Resend verification error:", error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
     app.get("/api/db-status", async (req, res) => {
       try {
         const isConfigured = !!process.env.VITE_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -225,20 +382,31 @@ async function startServer() {
       if (!supabase) return res.status(500).json({ error: "Supabase not configured" });
 
       try {
-        const { data, error } = await supabase.rpc('get_table_columns', { table_name: 'quiz_history' });
+        const { data: usersColumns, error: usersError } = await supabase
+          .from('information_schema.columns')
+          .select('column_name, data_type')
+          .eq('table_name', 'users');
+
+        const { data: pendingColumns, error: pendingError } = await supabase
+          .from('information_schema.columns')
+          .select('column_name, data_type')
+          .eq('table_name', 'pending_users');
         
-        // If RPC fails (likely because it doesn't exist), try querying information_schema
-        if (error) {
-          const { data: columns, error: infoError } = await supabase
-            .from('information_schema.columns')
-            .select('column_name, data_type')
-            .eq('table_name', 'quiz_history');
-          
-          if (infoError) throw infoError;
-          return res.json({ table: 'quiz_history', columns });
-        }
+        const { data: quizColumns, error: quizError } = await supabase
+          .from('information_schema.columns')
+          .select('column_name, data_type')
+          .eq('table_name', 'quiz_history');
         
-        res.json({ table: 'quiz_history', columns: data });
+        res.json({ 
+          users: usersColumns,
+          pending_users: pendingColumns,
+          quiz_history: quizColumns,
+          errors: {
+            users: usersError?.message,
+            pending: pendingError?.message,
+            quiz: quizError?.message
+          }
+        });
       } catch (err: any) {
         res.status(500).json({ error: err.message });
       }
@@ -495,10 +663,9 @@ async function startServer() {
 
     // Usage tracking endpoint
     app.post("/api/usage/check", async (req, res) => {
+      const { username, count } = req.body;
+      const requestedCount = parseInt(String(count)) || 0;
       try {
-        const { username, count } = req.body;
-        const requestedCount = parseInt(String(count)) || 0;
-
         if (!username) {
           return res.status(400).json({ error: "Username is required" });
         }
@@ -544,7 +711,7 @@ async function startServer() {
       } catch (err: any) {
         console.error("Usage check error:", err.message || err);
         // Fallback to success if DB fails, but log it
-        res.json({ success: true, allowedCount: count, newUsage: 0, limit: 50, warning: "Database connection issue" });
+        res.json({ success: true, allowedCount: requestedCount, newUsage: 0, limit: 50, warning: "Database connection issue" });
       }
     });
 
