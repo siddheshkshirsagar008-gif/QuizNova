@@ -43,7 +43,9 @@ import {
   RefreshCw,
   Database,
   ShieldCheck,
-  Sparkles
+  Sparkles,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDropzone } from 'react-dropzone';
@@ -285,13 +287,20 @@ const SettingsModal = ({
                         <div className="relative">
                           <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                           <input 
-                            type="password"
+                            type={showKey ? "text" : "password"}
                             value={key}
                             onChange={(e) => setKey(e.target.value)}
                             placeholder="Enter your API key"
                             className={cn("w-full border rounded-xl pl-11 pr-12 py-3 focus:outline-none focus:ring-2 transition-all text-sm", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
                           />
                           <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                            <button 
+                              type="button"
+                              onClick={() => setShowKey(!showKey)}
+                              className="p-1 hover:bg-slate-700/50 rounded-md transition-colors"
+                            >
+                              {showKey ? <EyeOff className="w-4 h-4 text-slate-500" /> : <Eye className="w-4 h-4 text-slate-500" />}
+                            </button>
                             <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded", key ? "text-emerald-500 bg-emerald-500/10" : "text-slate-500 bg-slate-500/10")}>
                               {key ? "Active" : "Inactive"}
                             </span>
@@ -626,6 +635,7 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
   const [isResending, setIsResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -834,19 +844,28 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
-                placeholder="milindk"
+                placeholder="enter username"
               />
             </div>
             <div>
               <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Password</label>
-              <input 
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all pr-12", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+                  placeholder="••••••••"
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 hover:bg-slate-500/10 rounded-xl transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5 text-slate-400" /> : <Eye className="w-5 h-5 text-slate-400" />}
+                </button>
+              </div>
             </div>
             <button 
               type="submit"
@@ -983,19 +1002,28 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
-                placeholder="milindk"
+                placeholder="enter username"
               />
             </div>
             <div>
               <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Password</label>
-              <input 
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all pr-12", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+                  placeholder="••••••••"
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 hover:bg-slate-500/10 rounded-xl transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5 text-slate-400" /> : <Eye className="w-5 h-5 text-slate-400" />}
+                </button>
+              </div>
             </div>
             <button 
               type="submit"
