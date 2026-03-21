@@ -96,6 +96,102 @@ async function startServer() {
       next();
     });
 
+    // Razorpay Integration
+    app.post("/api/razorpay/order", async (req, res) => {
+      const { amount, currency = "INR" } = req.body;
+      
+      if (!razorpay) {
+        console.warn("Razorpay not configured. Returning mock order ID for demo.");
+        return res.json({ 
+          id: `order_mock_${Date.now()}`, 
+          amount: amount * 100, 
+          currency,
+          isMock: true
+        });
+      }
+
+      try {
+        const order = await razorpay.orders.create({
+          amount: amount * 100, // Razorpay works in paise
+          currency,
+          receipt: `receipt_${Date.now()}`,
+        });
+        res.json(order);
+      } catch (error: any) {
+        console.error("Razorpay order creation error:", error);
+        res.status(500).json({ error: "Failed to create order", details: error.message });
+      }
+    });
+
+    app.post("/api/razorpay/verify", async (req, res) => {
+      const { 
+        razorpay_order_id, 
+        razorpay_payment_id, 
+        razorpay_signature,
+        username,
+        isMock
+      } = req.body;
+
+      if (isMock) {
+        console.log(`Mock payment verified for user: ${username}`);
+        // Upgrade user to pro
+        try {
+          const { error } = await supabase
+            .from('users')
+            .update({ tier: 'pro' })
+            .eq('username', username);
+          
+          if (error) throw error;
+          return res.json({ success: true, message: "Mock upgrade successful!" });
+        } catch (err: any) {
+          return res.status(500).json({ error: "Failed to upgrade user", details: err.message });
+        }
+      }
+
+      if (!razorpay) {
+        return res.status(500).json({ error: "Razorpay not configured" });
+      }
+
+      const body = razorpay_order_id + "|" + razorpay_payment_id;
+      const expectedSignature = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+        .update(body.toString())
+        .digest("hex");
+
+      if (expectedSignature === razorpay_signature) {
+        // Payment is valid
+        try {
+          const { error } = await supabase
+            .from('users')
+            .update({ tier: 'pro' })
+            .eq('username', username);
+          
+          if (error) throw error;
+          res.json({ success: true, message: "Payment verified and account upgraded!" });
+        } catch (err: any) {
+          res.status(500).json({ error: "Failed to upgrade user", details: err.message });
+        }
+      } else {
+        res.status(400).json({ success: false, message: "Invalid signature" });
+      }
+    });
+
+    // Mock upgrade endpoint for demo
+    app.post("/api/upgrade", async (req, res) => {
+      const { username } = req.body;
+      try {
+        const { error } = await supabase
+          .from('users')
+          .update({ tier: 'pro' })
+          .eq('username', username);
+        
+        if (error) throw error;
+        res.json({ success: true });
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
     // Health check
     app.get("/api/health", (req, res) => {
       res.json({ status: "ok", nodeVersion: process.version });
@@ -565,30 +661,34 @@ async function startServer() {
           if (!d) return '';
           const date = new Date(d);
           if (isNaN(date.getTime())) return '';
-          return date.toISOString().split('T')[0];
+          // Ensure we get YYYY-MM-DD in a consistent way
+          const year = date.getUTCFullYear();
+          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(date.getUTCDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
         } catch (e) {
           return '';
         }
       };
 
-      const today = toISODate(clientDate || now);
-      let lastResetDate = profile.last_reset_date || '';
+      // If clientDate is provided, it's already YYYY-MM-DD
+      // If not, we use server's UTC date
+      const today = clientDate || toISODate(now);
+      let lastResetDate = toISODate(profile.last_reset_date);
       
-      console.log(`Usage update for ${profile.username}: today=${today}, lastReset=${lastResetDate}, currentUsage=${profile.daily_usage}`);
-
-      if (lastResetDate && (typeof lastResetDate === 'string') && (lastResetDate.includes(':') || lastResetDate.includes(' ') || !lastResetDate.includes('-'))) {
-        const parseInput = (lastResetDate.includes('-') && lastResetDate.includes(':')) 
-          ? lastResetDate + " UTC" 
-          : lastResetDate;
-        lastResetDate = toISODate(parseInput);
-      }
+      console.log(`Usage sync for ${profile.username}: today=${today}, lastReset=${lastResetDate}, currentUsage=${profile.daily_usage}`);
 
       if (today && lastResetDate && today !== lastResetDate) {
-        console.log(`Resetting usage for ${profile.username} (new day: ${today} vs ${lastResetDate})`);
-        await supabase
+        console.log(`Resetting usage for ${profile.username} (New day: ${today} vs ${lastResetDate})`);
+        const { error } = await supabase
           .from('users')
           .update({ daily_usage: 0, last_reset_date: today })
           .eq('id', profile.id);
+        
+        if (error) {
+          console.error("Failed to reset usage in DB:", error);
+          return profile.daily_usage || 0; // Keep current usage if update fails
+        }
         return 0;
       }
       
@@ -596,9 +696,8 @@ async function startServer() {
         console.log(`Initializing reset date for ${profile.username} to ${today}`);
         await supabase
           .from('users')
-          .update({ daily_usage: 0, last_reset_date: today })
+          .update({ last_reset_date: today })
           .eq('id', profile.id);
-        return 0;
       }
 
       return profile.daily_usage || 0;
@@ -663,7 +762,7 @@ async function startServer() {
 
     // Usage tracking endpoint
     app.post("/api/usage/check", async (req, res) => {
-      const { username, count } = req.body;
+      const { username, count, clientDate } = req.body;
       const requestedCount = parseInt(String(count)) || 0;
       try {
         if (!username) {
@@ -678,12 +777,13 @@ async function startServer() {
           .single();
         
         if (error || !profile) {
-          // If user doesn't exist, allow initial usage but don't track
           return res.json({ success: true, allowedCount: requestedCount, newUsage: requestedCount, limit: 50 });
         }
 
+        // Check for daily reset here as well to be consistent
+        const currentUsage = await getUpdatedUsageSupabase(profile, clientDate);
+        
         const limit = profile.tier === 'pro' ? 500 : 50;
-        const currentUsage = profile.daily_usage || 0;
         const remaining = Math.max(0, limit - currentUsage);
 
         if (remaining <= 0) {
@@ -695,7 +795,6 @@ async function startServer() {
           });
         }
 
-        // If requested is more than remaining, allow only the remaining amount
         const allowedCount = Math.min(requestedCount, remaining);
         const newUsage = currentUsage + allowedCount;
 
@@ -710,14 +809,14 @@ async function startServer() {
         res.json({ success: true, allowedCount, newUsage, limit });
       } catch (err: any) {
         console.error("Usage check error:", err.message || err);
-        // Fallback to success if DB fails, but log it
-        res.json({ success: true, allowedCount: requestedCount, newUsage: 0, limit: 50, warning: "Database connection issue" });
+        // DO NOT return newUsage: 0 here, as it would reset the client state
+        res.json({ success: true, allowedCount: requestedCount, limit: 50, warning: "Database connection issue" });
       }
     });
 
     app.post("/api/usage/reset", async (req, res) => {
       try {
-        const { username } = req.body;
+        const { username, clientDate } = req.body;
         if (!username) return res.status(400).json({ error: "Username required" });
 
         const { data: profile, error } = await supabase
@@ -729,9 +828,21 @@ async function startServer() {
         if (error || !profile) return res.status(404).json({ error: "User not found" });
 
         const now = new Date();
-        const offset = now.getTimezoneOffset();
-        const localDate = new Date(now.getTime() - (offset * 60 * 1000));
-        const today = localDate.toISOString().split('T')[0];
+        const toISODate = (d: any) => {
+          try {
+            if (!d) return '';
+            const date = new Date(d);
+            if (isNaN(date.getTime())) return '';
+            const year = date.getUTCFullYear();
+            const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(date.getUTCDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          } catch (e) {
+            return '';
+          }
+        };
+
+        const today = clientDate || toISODate(now);
 
         await supabase
           .from('users')

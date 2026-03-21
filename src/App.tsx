@@ -42,7 +42,8 @@ import {
   Zap,
   RefreshCw,
   Database,
-  ShieldCheck
+  ShieldCheck,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDropzone } from 'react-dropzone';
@@ -736,6 +737,8 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
     }
   };
 
+  const [showLegal, setShowLegal] = useState<string | null>(null);
+
   const bgColor = isDark ? "bg-slate-950" : "bg-slate-50";
   const cardBg = isDark ? "bg-slate-900/50" : "bg-white";
   const borderColor = isDark ? "border-slate-800" : "border-slate-200";
@@ -743,12 +746,70 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
   const subTextColor = isDark ? "text-slate-400" : "text-slate-500";
   const inputBg = isDark ? "bg-slate-800" : "bg-slate-50";
 
+  const renderLegalContent = () => {
+    switch (showLegal) {
+      case 'terms':
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold">Terms and Conditions</h3>
+            <p>Welcome to Quiz Learner. By using our service, you agree to these terms. Our platform provides AI-generated MCQ practice tools for educational purposes.</p>
+            <p>Users are responsible for maintaining the confidentiality of their account credentials. We reserve the right to modify or terminate services at any time.</p>
+          </div>
+        );
+      case 'privacy':
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold">Privacy Policy</h3>
+            <p>We value your privacy. We collect minimal data (email, username) to provide our services. Your data is stored securely and never sold to third parties.</p>
+            <p>We use industry-standard encryption to protect your information and transaction details.</p>
+          </div>
+        );
+      case 'refund':
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold">Refund and Cancellation Policy</h3>
+            <p>Subscriptions can be cancelled at any time from the settings menu. Refunds are processed on a case-by-case basis within 7-10 business days of a valid request.</p>
+            <p>For any billing issues, please contact our support team.</p>
+          </div>
+        );
+      case 'contact':
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold">Contact Us</h3>
+            <p>Email: support@smktech.example.com</p>
+            <p>Address: SMKTech Solutions, Pune, Maharashtra, India</p>
+            <p>Response Time: Within 24-48 hours.</p>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
-    <div className={cn("min-h-screen flex items-center justify-center p-4", bgColor)}>
+    <div className={cn("min-h-screen flex flex-col items-center justify-center p-4 py-20", bgColor)}>
+      {/* Product Hero Section */}
+      <div className="text-center mb-12 max-w-2xl">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 text-indigo-500 text-sm font-bold mb-6"
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>AI-Powered Learning Platform</span>
+        </motion.div>
+        <h1 className={cn("text-5xl font-extrabold tracking-tight mb-4", textColor)}>
+          Master Any Subject with <span className="text-indigo-500">Quiz Learner</span>
+        </h1>
+        <p className={cn("text-lg", subTextColor)}>
+          Generate personalized MCQs from any text, track your progress, and excel in your exams with our advanced AI tutor.
+        </p>
+      </div>
+
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className={cn("w-full max-w-md p-8 rounded-[2.5rem] border shadow-2xl backdrop-blur-xl", cardBg, borderColor)}
+        className={cn("w-full max-w-md p-8 rounded-[2.5rem] border shadow-2xl backdrop-blur-xl relative z-10", cardBg, borderColor)}
       >
         <div className="text-center mb-8">
           <div className={cn("w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg", `bg-${accentColor}-500`)}>
@@ -973,6 +1034,74 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
           </motion.div>
         )}
       </motion.div>
+
+      {/* Features Grid for Razorpay Verification */}
+      <div className="grid md:grid-cols-3 gap-8 mt-20 max-w-6xl w-full">
+        <div className={cn("p-8 rounded-3xl border", cardBg, borderColor)}>
+          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-6">
+            <Brain className="w-6 h-6 text-indigo-500" />
+          </div>
+          <h3 className={cn("text-xl font-bold mb-3", textColor)}>AI Generation</h3>
+          <p className={cn("text-sm leading-relaxed", subTextColor)}>Instantly create high-quality MCQs from your textbooks, notes, or any educational content.</p>
+        </div>
+        <div className={cn("p-8 rounded-3xl border", cardBg, borderColor)}>
+          <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center mb-6">
+            <BarChart3 className="w-6 h-6 text-purple-500" />
+          </div>
+          <h3 className={cn("text-xl font-bold mb-3", textColor)}>Progress Tracking</h3>
+          <p className={cn("text-sm leading-relaxed", subTextColor)}>Monitor your accuracy and speed over time with detailed performance analytics and history.</p>
+        </div>
+        <div className={cn("p-8 rounded-3xl border", cardBg, borderColor)}>
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-6">
+            <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+          </div>
+          <h3 className={cn("text-xl font-bold mb-3", textColor)}>Smart Explanations</h3>
+          <p className={cn("text-sm leading-relaxed", subTextColor)}>Don't just practice, learn. Get detailed AI-powered explanations for every single question.</p>
+        </div>
+      </div>
+
+      {/* Mandatory Legal Footer for Razorpay */}
+      <footer className="mt-20 w-full max-w-6xl border-t pt-12 border-white/5">
+        <div className="flex flex-wrap justify-center gap-8 mb-8">
+          <button onClick={() => setShowLegal('terms')} className={cn("text-sm hover:underline", subTextColor)}>Terms & Conditions</button>
+          <button onClick={() => setShowLegal('privacy')} className={cn("text-sm hover:underline", subTextColor)}>Privacy Policy</button>
+          <button onClick={() => setShowLegal('refund')} className={cn("text-sm hover:underline", subTextColor)}>Refund Policy</button>
+          <button onClick={() => setShowLegal('contact')} className={cn("text-sm hover:underline", subTextColor)}>Contact Us</button>
+        </div>
+        <p className={cn("text-center text-xs opacity-50", subTextColor)}>
+          © 2026 Quiz Learner by SMKTech Solutions. All rights reserved.
+        </p>
+      </footer>
+
+      {/* Legal Modal */}
+      <AnimatePresence>
+        {showLegal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className={cn("w-full max-w-2xl p-8 rounded-[2.5rem] border shadow-2xl", cardBg, borderColor, textColor)}
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold capitalize">{showLegal.replace('-', ' ')}</h2>
+                <button onClick={() => setShowLegal(null)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="max-h-[60vh] overflow-y-auto pr-4 custom-scrollbar">
+                {renderLegalContent()}
+              </div>
+              <button 
+                onClick={() => setShowLegal(null)}
+                className={cn("w-full py-4 rounded-2xl font-bold mt-8", `bg-${accentColor}-500 text-white`)}
+              >
+                Close
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -1187,7 +1316,10 @@ export default function App() {
       const res = await fetch('/api/usage/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser.username })
+        body: JSON.stringify({ 
+          username: currentUser.username,
+          clientDate: getLocalDateString()
+        })
       });
       if (res.ok) {
         const data = await res.json();
@@ -1206,7 +1338,11 @@ export default function App() {
       const res = await fetch('/api/usage/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser.username, count })
+        body: JSON.stringify({ 
+          username: currentUser.username, 
+          count,
+          clientDate: getLocalDateString()
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -1505,7 +1641,7 @@ export default function App() {
   };
 
   const handleAnswer = (optionIndex: number) => {
-    if (userAnswers[currentQuestionIndex] !== null) return;
+    if (quizType !== 'exam' && userAnswers[currentQuestionIndex] !== null) return;
     const newAnswers = [...userAnswers];
     newAnswers[currentQuestionIndex] = optionIndex;
     setUserAnswers(newAnswers);
@@ -1541,13 +1677,13 @@ export default function App() {
       const accuracy = selectedQuestions.length > 0 ? (correct / selectedQuestions.length) * 100 : 0;
       const avgTime = selectedQuestions.length > 0 ? totalTime / selectedQuestions.length : 0;
 
-      const detailedReport = quizType === 'exam' ? selectedQuestions.map((q, i) => ({
+      const detailedReport = selectedQuestions.map((q, i) => ({
         question: q.question,
         userAnswer: userAnswers[i],
         correctAnswer: q.correctAnswerIndex,
         options: q.options,
         explanation: q.detailedExplanation
-      })) : undefined;
+      }));
 
       const result: QuizResult = {
         totalQuestions: selectedQuestions.length,
@@ -1598,15 +1734,13 @@ export default function App() {
     return "Keep practicing. Review the explanations to improve your understanding.";
   };
 
-  // --- Render Helpers ---
-
   const renderTierSelection = () => (
     <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className={cn(
-          "w-full max-w-4xl grid md:grid-cols-2 gap-8 p-4",
+          "w-full max-w-5xl grid md:grid-cols-2 gap-8 p-4",
         )}
       >
         {/* Free Tier */}
@@ -1625,15 +1759,31 @@ export default function App() {
           <ul className="space-y-4 mb-10 flex-1">
             <li className="flex items-center gap-3 text-sm">
               <Check className="w-5 h-5 text-emerald-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>200 MCQs per day</span>
+              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>50 MCQs per day</span>
             </li>
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-emerald-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Basic explanations</span>
+            <li className="flex items-center gap-3 text-sm opacity-60">
+              <Lock className="w-5 h-5 text-slate-400" />
+              <span className={isDarkMode ? "text-slate-500" : "text-slate-500"}>Detailed explanations</span>
             </li>
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-emerald-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Ads supported</span>
+            <li className="flex items-center gap-3 text-sm opacity-60">
+              <Lock className="w-5 h-5 text-slate-400" />
+              <span className={isDarkMode ? "text-slate-500" : "text-slate-500"}>Priority generation</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm opacity-60">
+              <Lock className="w-5 h-5 text-slate-400" />
+              <span className={isDarkMode ? "text-slate-500" : "text-slate-500"}>Zero Ads</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm opacity-60">
+              <Lock className="w-5 h-5 text-slate-400" />
+              <span className={isDarkMode ? "text-slate-500" : "text-slate-500"}>25/50 MCQs at a time</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm opacity-60">
+              <Lock className="w-5 h-5 text-slate-400" />
+              <span className={isDarkMode ? "text-slate-500" : "text-slate-500"}>Detailed history report</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm opacity-60">
+              <Lock className="w-5 h-5 text-slate-400" />
+              <span className={isDarkMode ? "text-slate-500" : "text-slate-500"}>Exam mode</span>
             </li>
           </ul>
           
@@ -1666,7 +1816,7 @@ export default function App() {
           <ul className="space-y-4 mb-10 flex-1">
             <li className="flex items-center gap-3 text-sm">
               <Check className="w-5 h-5 text-indigo-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>2,000 MCQs per day</span>
+              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>500 MCQs per day</span>
             </li>
             <li className="flex items-center gap-3 text-sm">
               <Check className="w-5 h-5 text-indigo-500" />
@@ -1674,11 +1824,23 @@ export default function App() {
             </li>
             <li className="flex items-center gap-3 text-sm">
               <Check className="w-5 h-5 text-indigo-500" />
+              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Priority generation</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm">
+              <Check className="w-5 h-5 text-indigo-500" />
               <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Zero Ads</span>
             </li>
             <li className="flex items-center gap-3 text-sm">
               <Check className="w-5 h-5 text-indigo-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Priority generation</span>
+              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>25/50 MCQs at a time</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm">
+              <Check className="w-5 h-5 text-indigo-500" />
+              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Detailed history report</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm">
+              <Check className="w-5 h-5 text-indigo-500" />
+              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Exam mode</span>
             </li>
           </ul>
           
@@ -1780,7 +1942,8 @@ export default function App() {
         {/* Usage & Ads Section */}
         <div className="mb-12 grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className={cn(
-            "lg:col-span-1 p-6 rounded-[2rem] border flex flex-col justify-between",
+            currentUser?.tier === 'pro' ? "lg:col-span-3" : "lg:col-span-1",
+            "p-6 rounded-[2rem] border flex flex-col justify-between",
             isDarkMode ? "bg-slate-900/50 border-slate-800" : "bg-white border-slate-200 shadow-sm"
           )}>
             <div>
@@ -1810,21 +1973,23 @@ export default function App() {
             </div>
           </div>
 
-          <div className={cn(
-            "lg:col-span-2 p-6 rounded-[2rem] border flex items-center justify-center relative overflow-hidden group cursor-pointer",
-            isDarkMode ? "bg-slate-900/50 border-slate-800" : "bg-slate-50 border-slate-200 shadow-sm"
-          )}>
-            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="text-center relative z-10">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Sponsored Advertisement</p>
-              <h4 className={cn("text-xl font-bold mb-1", isDarkMode ? "text-slate-300" : "text-slate-700")}>Master Your Exams with SMKTech Pro</h4>
-              <p className="text-sm text-slate-500">Get unlimited access, detailed explanations, and zero ads.</p>
-              <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-500/20 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] hover:bg-indigo-600">
-                Learn More <ExternalLink className="w-3 h-3" />
+          {currentUser?.tier !== 'pro' && (
+            <div className={cn(
+              "lg:col-span-2 p-6 rounded-[2rem] border flex items-center justify-center relative overflow-hidden group cursor-pointer",
+              isDarkMode ? "bg-slate-900/50 border-slate-800" : "bg-slate-50 border-slate-200 shadow-sm"
+            )}>
+              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="text-center relative z-10">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Sponsored Advertisement</p>
+                <h4 className={cn("text-xl font-bold mb-1", isDarkMode ? "text-slate-300" : "text-slate-700")}>Master Your Exams with SMKTech Pro</h4>
+                <p className="text-sm text-slate-500">Get unlimited access, detailed explanations, and zero ads.</p>
+                <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-500/20 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] hover:bg-indigo-600">
+                  Learn More <ExternalLink className="w-3 h-3" />
+                </div>
               </div>
+              <div className="absolute top-2 right-4 text-[8px] font-bold text-slate-500 uppercase">Ad</div>
             </div>
-            <div className="absolute top-2 right-4 text-[8px] font-bold text-slate-500 uppercase">Ad</div>
-          </div>
+          )}
         </div>
 
         <div className="max-w-4xl mx-auto">
@@ -1836,20 +2001,26 @@ export default function App() {
                 "flex p-1 rounded-xl border",
                 isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200 shadow-sm"
               )}>
-                {[10, 25, 50].map((num) => (
-                  <button
-                    key={num}
-                    onClick={() => setRoundSize(num)}
-                    className={cn(
-                      "px-3 py-1 rounded-lg text-xs font-bold transition-all",
-                      ROUND_SIZE === num 
-                        ? "bg-indigo-500 text-white shadow-sm" 
-                        : isDarkMode ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"
-                    )}
-                  >
-                    {num}
-                  </button>
-                ))}
+                {[10, 25, 50].map((num) => {
+                  const isLocked = num > 10 && currentUser?.tier !== 'pro';
+                  return (
+                    <button
+                      key={num}
+                      onClick={() => !isLocked && setRoundSize(num)}
+                      disabled={isLocked}
+                      className={cn(
+                        "px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1",
+                        ROUND_SIZE === num 
+                          ? "bg-indigo-500 text-white shadow-sm" 
+                          : isDarkMode ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600",
+                        isLocked && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {num}
+                      {isLocked && <Lock className="w-3 h-3" />}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -2111,27 +2282,37 @@ export default function App() {
           <div className="flex flex-col gap-3">
             {[
               { id: 'study', title: 'Practice Mode', desc: 'Instant feedback & explanations', icon: Info },
-              { id: 'exam', title: 'Exam Mode', desc: 'Results only at the very end', icon: Shield }
+              { id: 'exam', title: 'Exam Mode', desc: 'Results only at the very end', icon: Shield, locked: currentUser?.tier !== 'pro' }
             ].map((type) => (
               <button
                 key={type.id}
-                onClick={() => setQuizType(type.id as any)}
+                onClick={() => !type.locked && setQuizType(type.id as any)}
+                disabled={type.locked}
                 className={cn(
-                  "p-4 rounded-2xl border flex items-center gap-4 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-left",
+                  "p-4 rounded-2xl border flex items-center gap-4 transition-all duration-200 text-left relative overflow-hidden",
                   quizType === type.id 
                     ? `bg-${accentColor}-500 border-${accentColor}-500 text-white shadow-lg shadow-${accentColor}-500/20` 
                     : isDarkMode 
                       ? "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600" 
-                      : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"
+                      : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300",
+                  type.locked && "opacity-60 cursor-not-allowed grayscale"
                 )}
               >
                 <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", quizType === type.id ? "bg-white/20" : isDarkMode ? "bg-slate-700" : "bg-slate-200")}>
                   <type.icon className="w-5 h-5" />
                 </div>
-                <div>
-                  <p className="font-bold">{type.title}</p>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold">{type.title}</p>
+                    {type.locked && <Lock className="w-3 h-3 text-amber-500" />}
+                  </div>
                   <p className="text-xs opacity-70">{type.desc}</p>
                 </div>
+                {type.locked && (
+                  <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-amber-500 text-[8px] font-bold text-white uppercase tracking-wider">
+                    PRO
+                  </div>
+                )}
               </button>
             ))}
           </div>
@@ -2265,16 +2446,18 @@ export default function App() {
               
               let buttonClass = "p-6 rounded-2xl border-2 text-left transition-all duration-200 flex items-center justify-between group hover:scale-[1.01] active:scale-[0.99]";
               
-              if (!isAnswered) {
-                buttonClass += isDarkMode 
-                  ? " border-slate-800 hover:border-indigo-500 hover:bg-indigo-500/5 text-slate-300" 
-                  : " border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 text-slate-700";
-              } else if (quizType === 'exam') {
+              if (quizType === 'exam') {
                 if (isSelected) {
                   buttonClass += ` border-${accentColor}-500 bg-${accentColor}-500/10 text-${accentColor}-500`;
                 } else {
-                  buttonClass += isDarkMode ? " border-slate-800 opacity-50 text-slate-500" : " border-slate-100 opacity-50 text-slate-400";
+                  buttonClass += isDarkMode 
+                    ? " border-slate-800 hover:border-indigo-500 hover:bg-indigo-500/5 text-slate-300" 
+                    : " border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 text-slate-700";
                 }
+              } else if (!isAnswered) {
+                buttonClass += isDarkMode 
+                  ? " border-slate-800 hover:border-indigo-500 hover:bg-indigo-500/5 text-slate-300" 
+                  : " border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 text-slate-700";
               } else if (isCorrect) {
                 buttonClass += " border-emerald-500 bg-emerald-500/10 text-emerald-600";
               } else if (isSelected && !isCorrect) {
@@ -2286,7 +2469,7 @@ export default function App() {
               return (
                 <button
                   key={idx}
-                  disabled={isAnswered}
+                  disabled={quizType !== 'exam' && isAnswered}
                   onClick={() => handleAnswer(idx)}
                   className={buttonClass}
                 >
@@ -2368,15 +2551,22 @@ export default function App() {
                         Short
                       </button>
                       <button 
-                        onClick={() => setExplanationType('detailed')}
+                        onClick={() => {
+                          if (currentUser?.tier !== 'pro') {
+                            setState('tier_selection');
+                            return;
+                          }
+                          setExplanationType('detailed');
+                        }}
                         className={cn(
-                          "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                          "px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1",
                           explanationType === 'detailed' 
                             ? `bg-${accentColor}-500 text-white` 
                             : isDarkMode ? "bg-slate-800 text-slate-400 hover:bg-slate-700" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                         )}
                       >
                         Detailed
+                        {currentUser?.tier !== 'pro' && <Lock className="w-3 h-3" />}
                       </button>
                       <button 
                         onClick={() => setShowExplanation(false)}
@@ -2534,94 +2724,108 @@ export default function App() {
             </div>
           </div>
 
-          {/* Detailed Report for Exam Mode */}
-          {quizType === 'exam' && (
-            <div className="lg:col-span-3 mt-8">
-              <div className={cn(
-                "p-8 rounded-3xl border",
-                isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200 shadow-sm"
-              )}>
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className={cn("text-xl font-bold", isDarkMode ? "text-white" : "text-slate-900")}>Detailed Test Report</h3>
-                  <div className="flex gap-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                      <span className="text-xs text-slate-500 font-medium">Correct</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-red-500" />
-                      <span className="text-xs text-slate-500 font-medium">Incorrect</span>
-                    </div>
+          {/* Detailed Report Section */}
+          <div className="lg:col-span-3 mt-8">
+            <div className={cn(
+              "p-8 rounded-3xl border relative overflow-hidden",
+              isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200 shadow-sm"
+            )}>
+              {currentUser?.tier !== 'pro' && (
+                <div className="absolute inset-0 z-10 bg-slate-900/40 backdrop-blur-[6px] flex flex-col items-center justify-center p-8 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-500/20 flex items-center justify-center mb-4">
+                    <Lock className="w-8 h-8 text-amber-500" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">Detailed Report Locked</h3>
+                  <p className="text-slate-300 max-w-md mb-6">Upgrade to Pro to unlock detailed question-by-question analysis, explanations, and history reports.</p>
+                  <button 
+                    onClick={() => setState('tier_selection')}
+                    className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20"
+                  >
+                    Upgrade to Pro
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between mb-8">
+                <h3 className={cn("text-xl font-bold", isDarkMode ? "text-white" : "text-slate-900")}>Detailed Test Report</h3>
+                <div className="flex gap-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                    <span className="text-xs text-slate-500 font-medium">Correct</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500" />
+                    <span className="text-xs text-slate-500 font-medium">Incorrect</span>
                   </div>
                 </div>
+              </div>
 
-                <div className="space-y-6">
-                  {selectedQuestions.map((q, idx) => {
-                    const userAnswer = userAnswers[idx];
-                    const isCorrect = userAnswer === q.correctAnswerIndex;
-                    
-                    return (
-                      <div key={idx} className={cn(
-                        "p-6 rounded-2xl border transition-all",
-                        isCorrect 
-                          ? (isDarkMode ? "bg-emerald-500/5 border-emerald-500/20" : "bg-emerald-50 border-emerald-100")
-                          : (userAnswer === null 
-                              ? (isDarkMode ? "bg-slate-800/50 border-slate-700" : "bg-slate-50 border-slate-200")
-                              : (isDarkMode ? "bg-red-500/5 border-red-500/20" : "bg-red-50 border-red-100"))
-                      )}>
-                        <div className="flex items-start gap-4">
-                          <div className={cn(
-                            "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-1",
-                            isCorrect ? "bg-emerald-500 text-white" : (userAnswer === null ? "bg-slate-500 text-white" : "bg-red-500 text-white")
-                          )}>
-                            <span className="text-sm font-bold">{idx + 1}</span>
+              <div className="space-y-6">
+                {selectedQuestions.map((q, idx) => {
+                  const userAnswer = userAnswers[idx];
+                  const isCorrect = userAnswer === q.correctAnswerIndex;
+                  
+                  return (
+                    <div key={idx} className={cn(
+                      "p-6 rounded-2xl border transition-all",
+                      isCorrect 
+                        ? (isDarkMode ? "bg-emerald-500/5 border-emerald-500/20" : "bg-emerald-50 border-emerald-100")
+                        : (userAnswer === null 
+                            ? (isDarkMode ? "bg-slate-800/50 border-slate-700" : "bg-slate-50 border-slate-200")
+                            : (isDarkMode ? "bg-red-500/5 border-red-500/20" : "bg-red-50 border-red-100"))
+                    )}>
+                      <div className="flex items-start gap-4">
+                        <div className={cn(
+                          "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-1",
+                          isCorrect ? "bg-emerald-500 text-white" : (userAnswer === null ? "bg-slate-500 text-white" : "bg-red-500 text-white")
+                        )}>
+                          <span className="text-sm font-bold">{idx + 1}</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className={cn("text-lg font-medium mb-4", isDarkMode ? "text-white" : "text-slate-900")}>
+                            {stripQuestionNumber(q.question)}
+                          </p>
+                          
+                          <div className="grid md:grid-cols-2 gap-3 mb-4">
+                            {q.options.map((opt, optIdx) => {
+                              const isUserChoice = userAnswer === optIdx;
+                              const isCorrectChoice = q.correctAnswerIndex === optIdx;
+                              
+                              return (
+                                <div key={optIdx} className={cn(
+                                  "p-3 rounded-xl border text-sm flex items-center justify-between",
+                                  isCorrectChoice 
+                                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold"
+                                    : isUserChoice 
+                                      ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 font-bold"
+                                      : (isDarkMode ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-white border-slate-200 text-slate-600")
+                                )}>
+                                  <span>{opt}</span>
+                                  {isCorrectChoice && <Check className="w-4 h-4" />}
+                                  {isUserChoice && !isCorrectChoice && <X className="w-4 h-4" />}
+                                </div>
+                              );
+                            })}
                           </div>
-                          <div className="flex-1">
-                            <p className={cn("text-lg font-medium mb-4", isDarkMode ? "text-white" : "text-slate-900")}>
-                              {stripQuestionNumber(q.question)}
-                            </p>
-                            
-                            <div className="grid md:grid-cols-2 gap-3 mb-4">
-                              {q.options.map((opt, optIdx) => {
-                                const isUserChoice = userAnswer === optIdx;
-                                const isCorrectChoice = q.correctAnswerIndex === optIdx;
-                                
-                                return (
-                                  <div key={optIdx} className={cn(
-                                    "p-3 rounded-xl border text-sm flex items-center justify-between",
-                                    isCorrectChoice 
-                                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold"
-                                      : isUserChoice 
-                                        ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 font-bold"
-                                        : (isDarkMode ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-white border-slate-200 text-slate-600")
-                                  )}>
-                                    <span>{opt}</span>
-                                    {isCorrectChoice && <Check className="w-4 h-4" />}
-                                    {isUserChoice && !isCorrectChoice && <X className="w-4 h-4" />}
-                                  </div>
-                                );
-                              })}
-                            </div>
 
-                            <div className={cn(
-                              "p-4 rounded-xl text-sm",
-                              isDarkMode ? "bg-slate-800/50 text-slate-400" : "bg-slate-100 text-slate-600"
-                            )}>
-                              <p className="font-bold mb-1 flex items-center gap-2">
-                                <Info className="w-4 h-4" />
-                                Explanation
-                              </p>
-                              <Markdown>{q.detailedExplanation}</Markdown>
-                            </div>
+                          <div className={cn(
+                            "p-4 rounded-xl text-sm",
+                            isDarkMode ? "bg-slate-800/50 text-slate-400" : "bg-slate-100 text-slate-600"
+                          )}>
+                            <p className="font-bold mb-1 flex items-center gap-2">
+                              <Info className="w-4 h-4" />
+                              Explanation
+                            </p>
+                            <Markdown>{q.detailedExplanation}</Markdown>
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          )}
+          </div>
 
           {/* Actions */}
           <div className="space-y-4">
@@ -2810,16 +3014,21 @@ export default function App() {
                     {item.detailed_report && (
                       <button 
                         onClick={() => {
+                          if (currentUser?.tier !== 'pro') {
+                            setState('tier_selection');
+                            return;
+                          }
                           const report = typeof item.detailed_report === 'string' ? JSON.parse(item.detailed_report) : item.detailed_report;
                           setSelectedHistoryReport(report);
                         }}
                         className={cn(
-                          "p-2 rounded-lg transition-all",
+                          "p-2 rounded-lg transition-all flex items-center gap-2",
                           isDarkMode ? "bg-slate-800 text-slate-400 hover:text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                         )}
-                        title="View Detailed Report"
+                        title={currentUser?.tier === 'pro' ? "View Detailed Report" : "Unlock Detailed Report (PRO)"}
                       >
                         <FileText className="w-5 h-5" />
+                        {currentUser?.tier !== 'pro' && <Lock className="w-3 h-3 text-amber-500" />}
                       </button>
                     )}
                   </div>
@@ -2959,6 +3168,17 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
+            {currentUser?.tier !== 'pro' && state !== 'auth' && (
+              <button
+                onClick={() => setState('tier_selection')}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-[1.05] active:scale-[0.95] transition-all duration-200",
+                )}
+              >
+                <Zap className="w-4 h-4 fill-current" />
+                <span className="hidden sm:inline">Upgrade to Pro</span>
+              </button>
+            )}
             <SettingsButton onClick={() => setShowSettings(true)} />
             <ThemeToggle isDark={isDarkMode} toggle={() => setIsDarkMode(!isDarkMode)} />
             {state !== 'auth' && (
