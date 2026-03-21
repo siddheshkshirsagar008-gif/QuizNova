@@ -298,6 +298,11 @@ const SettingsModal = ({
                         <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
                           Your key is stored securely. For your safety, the full key is hidden. Status: <span className={key ? "text-emerald-500 font-bold" : "text-slate-500"}>{key ? "Connected" : "Disconnected"}</span>
                         </p>
+                        {key && (
+                          <p className="text-[10px] text-rose-500 mt-1 leading-relaxed">
+                            If you see "API key not valid" errors, try clearing this field to use the system default or verify your key at Google AI Studio.
+                          </p>
+                        )}
                       </div>
 
                       <div className={cn("p-5 rounded-2xl border", itemBg, borderColor)}>

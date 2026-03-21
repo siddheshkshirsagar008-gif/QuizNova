@@ -122,6 +122,12 @@ export async function generateMCQsFromText(
     }
   } catch (error: any) {
     console.error("Failed to generate MCQs:", error.message || error);
+    
+    // Check for specific API key error from Google
+    if (error.message && (error.message.includes("API key not valid") || error.message.includes("INVALID_ARGUMENT"))) {
+      throw new Error("Invalid Gemini API Key. Please check your API key in Settings > AI Engine. If you haven't set one, ensure the project's default key is valid.");
+    }
+    
     throw new Error(error.message || "Failed to generate valid MCQs from the document.");
   }
 }
@@ -270,6 +276,12 @@ export async function generateMCQsFromConceptText(
     }
   } catch (error: any) {
     console.error("Failed to analyze and generate MCQs:", error.message || error);
+    
+    // Check for specific API key error from Google
+    if (error.message && (error.message.includes("API key not valid") || error.message.includes("INVALID_ARGUMENT"))) {
+      throw new Error("Invalid Gemini API Key. Please check your API key in Settings > AI Engine. If you haven't set one, ensure the project's default key is valid.");
+    }
+    
     throw new Error(error.message || "Failed to process the document text.");
   }
 }
