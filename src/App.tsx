@@ -151,21 +151,11 @@ const SettingsModal = ({
 }) => {
   const [key, setKey] = useState(currentKey);
   const [showKey, setShowKey] = useState(false);
-  const [activeTab, setActiveTab] = useState<'api' | 'stats' | 'preferences' | 'database'>('api');
+  const [activeTab, setActiveTab] = useState<'api' | 'stats' | 'preferences'>('api');
   const [isResetting, setIsResetting] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
-  const [dbConfigured, setDbConfigured] = useState<boolean | null>(null);
   
   const [soundEnabled, setSoundEnabled] = useState(localStorage.getItem('sound_enabled') !== 'false');
-
-  useEffect(() => {
-    if (isOpen) {
-      fetch('/api/db-status')
-        .then(res => res.json())
-        .then(data => setDbConfigured(data.configured))
-        .catch(() => setDbConfigured(false));
-    }
-  }, [isOpen]);
 
   const toggleSound = () => {
     const newVal = !soundEnabled;
@@ -192,7 +182,6 @@ const SettingsModal = ({
     { id: 'api', label: 'AI Engine', icon: Cpu },
     { id: 'stats', label: 'Learning Stats', icon: BarChart3 },
     { id: 'preferences', label: 'Preferences', icon: Palette },
-    { id: 'database', label: 'Database', icon: Database },
   ];
 
   const bgColor = isDark ? "bg-slate-900" : "bg-white";
@@ -369,70 +358,6 @@ const SettingsModal = ({
                     >
                       Apply Changes
                     </button>
-                  </motion.div>
-                )}
-
-                {activeTab === 'database' && (
-                  <motion.div
-                    key="database"
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    className="space-y-6"
-                  >
-                    <div>
-                      <h3 className={cn("text-xl font-bold mb-1", textColor)}>Database Configuration</h3>
-                      <p className={cn("text-sm", subTextColor)}>Connect your Supabase project to persist data.</p>
-                    </div>
-
-                    <div className={cn("p-6 rounded-2xl border flex items-center justify-between", itemBg, borderColor)}>
-                      <div className="flex items-center gap-4">
-                        <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", dbConfigured ? "bg-emerald-500/20 text-emerald-500" : "bg-amber-500/20 text-amber-500")}>
-                          <Database className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <p className={cn("text-sm font-bold", textColor)}>Supabase Status</p>
-                          <p className="text-xs text-slate-500">{dbConfigured ? "Connected & Operational" : "Not Configured"}</p>
-                        </div>
-                      </div>
-                      <div className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider", dbConfigured ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500")}>
-                        {dbConfigured ? "Online" : "Offline"}
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className={cn("p-5 rounded-2xl border space-y-4", isDark ? "bg-slate-950/50" : "bg-slate-50")}>
-                        <h4 className={cn("text-sm font-bold flex items-center gap-2", textColor)}>
-                          <HelpCircle className="w-4 h-4 text-indigo-500" />
-                          How to find your credentials
-                        </h4>
-                        <ol className="text-xs space-y-3 text-slate-500 list-decimal pl-4">
-                          <li>Go to your <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">Supabase Dashboard</a>.</li>
-                          <li>Select your project and go to <strong>Project Settings</strong> (⚙️ gear icon).</li>
-                          <li>Navigate to <strong>API</strong> in the sidebar.</li>
-                          <li>Copy the <strong>Project URL</strong> and <strong>anon public</strong> key.</li>
-                          <li>For the backend, go to <strong>Project Settings</strong> → <strong>API</strong> and copy the <strong>service_role</strong> key.</li>
-                        </ol>
-                      </div>
-
-                      <div className={cn("p-5 rounded-2xl border space-y-3", `bg-${accentColor}-500/5 border-${accentColor}-500/10`)}>
-                        <h4 className={cn("text-sm font-bold flex items-center gap-2", textColor)}>
-                          <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                          Where to put them
-                        </h4>
-                        <p className="text-xs text-slate-500 leading-relaxed">
-                          For security, credentials must be added to the platform's <strong>Secrets</strong> menu.
-                        </p>
-                        <div className="bg-slate-950/80 p-3 rounded-lg font-mono text-[10px] text-indigo-300 space-y-1">
-                          <p>1. Open ⚙️ Settings (Top Right)</p>
-                          <p>2. Go to "Secrets" tab</p>
-                          <p>3. Add the following keys:</p>
-                          <p className="text-white pl-2">VITE_SUPABASE_URL</p>
-                          <p className="text-white pl-2">VITE_SUPABASE_ANON_KEY</p>
-                          <p className="text-white pl-2">SUPABASE_SERVICE_ROLE_KEY</p>
-                        </div>
-                      </div>
-                    </div>
                   </motion.div>
                 )}
 
@@ -729,6 +654,10 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
 
   const handleCompleteProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password.length <= 6 || password.length >= 12) {
+      setError("Password must be between 7 and 11 characters long.");
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -792,6 +721,10 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password.length <= 6 || password.length >= 12) {
+      setError("Password must be between 7 and 11 characters long.");
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -827,7 +760,7 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
         return (
           <div className="space-y-4">
             <h3 className="text-lg font-bold">Terms and Conditions</h3>
-            <p>Welcome to Quiz Learner. By using our service, you agree to these terms. Our platform provides AI-generated MCQ practice tools for educational purposes.</p>
+            <p>Welcome to QuizNova. By using our service, you agree to these terms. Our platform provides AI-generated MCQ practice tools for educational purposes.</p>
             <p>Users are responsible for maintaining the confidentiality of their account credentials. We reserve the right to modify or terminate services at any time.</p>
           </div>
         );
@@ -872,7 +805,7 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
           <span>AI-Powered Learning Platform</span>
         </motion.div>
         <h1 className={cn("text-5xl font-extrabold tracking-tight mb-4", textColor)}>
-          Master Any Subject with <span className="text-indigo-500">Quiz Learner</span>
+          Master Any Subject with <span className="text-indigo-500">QuizNova</span>
         </h1>
         <p className={cn("text-lg", subTextColor)}>
           Generate personalized MCQs from any text, track your progress, and excel in your exams with our advanced AI tutor.
@@ -1111,6 +1044,7 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
                   {showPassword ? <EyeOff className="w-5 h-5 text-slate-400" /> : <Eye className="w-5 h-5 text-slate-400" />}
                 </button>
               </div>
+              <p className="text-[10px] text-slate-500 mt-1.5 ml-1">Password must be between 7 and 11 characters long.</p>
             </div>
             <button 
               type="submit"
@@ -1216,6 +1150,7 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
                   {showPassword ? <EyeOff className="w-5 h-5 text-slate-400" /> : <Eye className="w-5 h-5 text-slate-400" />}
                 </button>
               </div>
+              <p className="text-[10px] text-slate-500 mt-1.5 ml-1">Password must be between 7 and 11 characters long.</p>
             </div>
             <button 
               type="submit"
@@ -1287,7 +1222,7 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
           <button onClick={() => setShowLegal('contact')} className={cn("text-sm hover:underline", subTextColor)}>Contact Us</button>
         </div>
         <p className={cn("text-center text-xs opacity-50", subTextColor)}>
-          © 2026 Quiz Learner by SMKTech Solutions. All rights reserved.
+          © 2026 QuizNova by SMKTech Solutions. All rights reserved.
         </p>
       </footer>
 
@@ -1328,7 +1263,7 @@ const DEFAULT_USER = {
   username: 'guest',
   email: 'guest@example.com',
   full_name: 'Guest User',
-  bio: 'Welcome to Quiz Learner!',
+  bio: 'Welcome to QuizNova!',
   api_key: '',
   tier: 'pro' as const,
   daily_usage: 0,
@@ -1485,7 +1420,7 @@ export default function App() {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency,
-        name: "SMKTech Quiz Learner",
+        name: "SMKTech QuizNova",
         description: "Pro Subscription",
         order_id: order.id,
         handler: async function (response: any) {
@@ -3362,7 +3297,7 @@ export default function App() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
               <Brain className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-bold tracking-tight">Quiz Learner</span>
+            <span className="text-xl font-bold tracking-tight">QuizNova</span>
           </div>
 
           <div className="flex items-center gap-4">

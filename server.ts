@@ -322,6 +322,11 @@ async function startServer() {
 
     app.post("/api/auth/complete-profile", async (req, res) => {
       const { email, username, fullName, password, otp } = req.body;
+      
+      if (!password || password.length <= 6 || password.length >= 12) {
+        return res.status(400).json({ error: "Password must be between 7 and 11 characters long." });
+      }
+
       const supabase = getSupabase();
 
       if (!supabase) return res.status(500).json({ error: "Database not configured" });
@@ -502,6 +507,11 @@ async function startServer() {
 
     app.post("/api/auth/reset-password", async (req, res) => {
       const { email, otp, newPassword } = req.body;
+
+      if (!newPassword || newPassword.length <= 6 || newPassword.length >= 12) {
+        return res.status(400).json({ error: "Password must be between 7 and 11 characters long." });
+      }
+
       const supabase = getSupabase();
       if (!supabase) return res.status(500).json({ error: "Database not configured" });
 
