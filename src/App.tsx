@@ -760,25 +760,23 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
         return (
           <div className="space-y-4">
             <h3 className="text-lg font-bold">Privacy Policy</h3>
-            <p>We value your privacy. We collect minimal data (email, username) to provide our services. Your data is stored securely and never sold to third parties.</p>
-            <p>We use industry-standard encryption to protect your information and transaction details.</p>
+            <p>We provide data based on the PDFs you upload, which are processed using advanced AI technology. Please be aware that since we are currently in a developing stage, mistakes or inaccuracies may occur in the generated content. We are not responsible for any such errors.</p>
+            <p>By using our service, you acknowledge and agree that the data extracted from your PDFs may be used for further internal uses, including improving our AI models and service quality. We value your privacy and ensure that your data is handled with care.</p>
           </div>
         );
       case 'refund':
         return (
           <div className="space-y-4">
             <h3 className="text-lg font-bold">Refund and Cancellation Policy</h3>
-            <p>Subscriptions can be cancelled at any time from the settings menu. Refunds are processed on a case-by-case basis within 7-10 business days of a valid request.</p>
-            <p>For any billing issues, please contact our support team.</p>
+            <p>Please be aware that once a subscription is purchased, it cannot be cancelled or refunded. We encourage users to explore our free tier before committing to a Pro subscription.</p>
+            <p>By proceeding with a purchase, you acknowledge that you have understood and accepted this "no cancellation" policy. For any critical billing discrepancies, you may reach out to our support.</p>
           </div>
         );
       case 'contact':
         return (
           <div className="space-y-4">
             <h3 className="text-lg font-bold">Contact Us</h3>
-            <p>Email: support@smktech.example.com</p>
-            <p>Address: SMKTech Solutions, Pune, Maharashtra, India</p>
-            <p>Response Time: Within 24-48 hours.</p>
+            <p>Email: smktech98@gmail.com</p>
           </div>
         );
       default:
@@ -1132,7 +1130,6 @@ export default function App() {
   const [defaultQuizSize, setDefaultQuizSize] = useState(Number(localStorage.getItem('default_quiz_size')) || 10);
   const [questions, setQuestions] = useState<MCQ[]>([]);
   const [quizType, setQuizType] = useState<'study' | 'exam'>('study');
-  const [historySearch, setHistorySearch] = useState('');
   const [fullText, setFullText] = useState<string>('');
   const [isGeneratingMore, setIsGeneratingMore] = useState(false);
   const [selectedQuestions, setSelectedQuestions] = useState<MCQ[]>([]);
@@ -2724,109 +2721,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Detailed Report Section */}
-          <div className="lg:col-span-3 mt-8">
-            <div className={cn(
-              "p-8 rounded-3xl border relative overflow-hidden",
-              isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200 shadow-sm"
-            )}>
-              {currentUser?.tier !== 'pro' && (
-                <div className="absolute inset-0 z-10 bg-slate-900/40 backdrop-blur-[6px] flex flex-col items-center justify-center p-8 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-amber-500/20 flex items-center justify-center mb-4">
-                    <Lock className="w-8 h-8 text-amber-500" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-white mb-2">Detailed Report Locked</h3>
-                  <p className="text-slate-300 max-w-md mb-6">Upgrade to Pro to unlock detailed question-by-question analysis, explanations, and history reports.</p>
-                  <button 
-                    onClick={() => setState('tier_selection')}
-                    className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20"
-                  >
-                    Upgrade to Pro
-                  </button>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between mb-8">
-                <h3 className={cn("text-xl font-bold", isDarkMode ? "text-white" : "text-slate-900")}>Detailed Test Report</h3>
-                <div className="flex gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                    <span className="text-xs text-slate-500 font-medium">Correct</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-red-500" />
-                    <span className="text-xs text-slate-500 font-medium">Incorrect</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                {selectedQuestions.map((q, idx) => {
-                  const userAnswer = userAnswers[idx];
-                  const isCorrect = userAnswer === q.correctAnswerIndex;
-                  
-                  return (
-                    <div key={idx} className={cn(
-                      "p-6 rounded-2xl border transition-all",
-                      isCorrect 
-                        ? (isDarkMode ? "bg-emerald-500/5 border-emerald-500/20" : "bg-emerald-50 border-emerald-100")
-                        : (userAnswer === null 
-                            ? (isDarkMode ? "bg-slate-800/50 border-slate-700" : "bg-slate-50 border-slate-200")
-                            : (isDarkMode ? "bg-red-500/5 border-red-500/20" : "bg-red-50 border-red-100"))
-                    )}>
-                      <div className="flex items-start gap-4">
-                        <div className={cn(
-                          "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-1",
-                          isCorrect ? "bg-emerald-500 text-white" : (userAnswer === null ? "bg-slate-500 text-white" : "bg-red-500 text-white")
-                        )}>
-                          <span className="text-sm font-bold">{idx + 1}</span>
-                        </div>
-                        <div className="flex-1">
-                          <p className={cn("text-lg font-medium mb-4", isDarkMode ? "text-white" : "text-slate-900")}>
-                            {stripQuestionNumber(q.question)}
-                          </p>
-                          
-                          <div className="grid md:grid-cols-2 gap-3 mb-4">
-                            {q.options.map((opt, optIdx) => {
-                              const isUserChoice = userAnswer === optIdx;
-                              const isCorrectChoice = q.correctAnswerIndex === optIdx;
-                              
-                              return (
-                                <div key={optIdx} className={cn(
-                                  "p-3 rounded-xl border text-sm flex items-center justify-between",
-                                  isCorrectChoice 
-                                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold"
-                                    : isUserChoice 
-                                      ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 font-bold"
-                                      : (isDarkMode ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-white border-slate-200 text-slate-600")
-                                )}>
-                                  <span>{opt}</span>
-                                  {isCorrectChoice && <Check className="w-4 h-4" />}
-                                  {isUserChoice && !isCorrectChoice && <X className="w-4 h-4" />}
-                                </div>
-                              );
-                            })}
-                          </div>
-
-                          <div className={cn(
-                            "p-4 rounded-xl text-sm",
-                            isDarkMode ? "bg-slate-800/50 text-slate-400" : "bg-slate-100 text-slate-600"
-                          )}>
-                            <p className="font-bold mb-1 flex items-center gap-2">
-                              <Info className="w-4 h-4" />
-                              Explanation
-                            </p>
-                            <Markdown>{q.detailedExplanation}</Markdown>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
           {/* Actions */}
           <div className="space-y-4">
             {quizMode === 'all' && (
@@ -2880,18 +2774,117 @@ export default function App() {
               View History
             </button>
           </div>
+
+          {/* Detailed Report Section */}
+          {quizType === 'exam' && (
+            <div className="lg:col-span-3 mt-8">
+              <div className={cn(
+                "p-8 rounded-3xl border relative overflow-hidden",
+                isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200 shadow-sm"
+              )}>
+                {currentUser?.tier !== 'pro' && (
+                  <div className="absolute inset-0 z-10 bg-slate-900/40 backdrop-blur-[6px] flex flex-col items-center justify-center p-8 text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-amber-500/20 flex items-center justify-center mb-4">
+                      <Lock className="w-8 h-8 text-amber-500" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-2">Detailed Report Locked</h3>
+                    <p className="text-slate-300 max-w-md mb-6">Upgrade to Pro to unlock detailed question-by-question analysis, explanations, and history reports.</p>
+                    <button 
+                      onClick={() => setState('tier_selection')}
+                      className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20"
+                    >
+                      Upgrade to Pro
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className={cn("text-xl font-bold", isDarkMode ? "text-white" : "text-slate-900")}>Detailed Test Report</h3>
+                  <div className="flex gap-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                      <span className="text-xs text-slate-500 font-medium">Correct</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-red-500" />
+                      <span className="text-xs text-slate-500 font-medium">Incorrect</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  {selectedQuestions.map((q, idx) => {
+                    const userAnswer = userAnswers[idx];
+                    const isCorrect = userAnswer === q.correctAnswerIndex;
+                    
+                    return (
+                      <div key={idx} className={cn(
+                        "p-6 rounded-2xl border transition-all",
+                        isCorrect 
+                          ? (isDarkMode ? "bg-emerald-500/5 border-emerald-500/20" : "bg-emerald-50 border-emerald-100")
+                          : (userAnswer === null 
+                              ? (isDarkMode ? "bg-slate-800/50 border-slate-700" : "bg-slate-50 border-slate-200")
+                              : (isDarkMode ? "bg-red-500/5 border-red-500/20" : "bg-red-50 border-red-100"))
+                      )}>
+                        <div className="flex items-start gap-4">
+                          <div className={cn(
+                            "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-1",
+                            isCorrect ? "bg-emerald-500 text-white" : (userAnswer === null ? "bg-slate-500 text-white" : "bg-red-500 text-white")
+                          )}>
+                            <span className="text-sm font-bold">{idx + 1}</span>
+                          </div>
+                          <div className="flex-1">
+                            <p className={cn("text-lg font-medium mb-4", isDarkMode ? "text-white" : "text-slate-900")}>
+                              {stripQuestionNumber(q.question)}
+                            </p>
+                            
+                            <div className="grid md:grid-cols-2 gap-3 mb-4">
+                              {q.options.map((opt, optIdx) => {
+                                const isUserChoice = userAnswer === optIdx;
+                                const isCorrectChoice = q.correctAnswerIndex === optIdx;
+                                
+                                return (
+                                  <div key={optIdx} className={cn(
+                                    "p-3 rounded-xl border text-sm flex items-center justify-between",
+                                    isCorrectChoice 
+                                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold"
+                                      : isUserChoice 
+                                        ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 font-bold"
+                                        : (isDarkMode ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-white border-slate-200 text-slate-600")
+                                  )}>
+                                    <span>{opt}</span>
+                                    {isCorrectChoice && <Check className="w-4 h-4" />}
+                                    {isUserChoice && !isCorrectChoice && <X className="w-4 h-4" />}
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <div className={cn(
+                              "p-4 rounded-xl text-sm",
+                              isDarkMode ? "bg-slate-800/50 text-slate-400" : "bg-slate-100 text-slate-600"
+                            )}>
+                              <p className="font-bold mb-1 flex items-center gap-2">
+                                <Info className="w-4 h-4" />
+                                Explanation
+                              </p>
+                              <Markdown>{q.detailedExplanation}</Markdown>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
   };
 
   const renderHistory = () => {
-    const filteredHistory = history.filter(item => 
-      item.accuracy.toString().includes(historySearch) || 
-      new Date(item.created_at).toLocaleDateString().includes(historySearch) ||
-      (item.level && item.level.toLowerCase().includes(historySearch.toLowerCase()))
-    );
-
     const chartData = [...history].reverse().map((item, i) => ({
       name: `Quiz ${i + 1}`,
       accuracy: item.accuracy
@@ -2905,21 +2898,6 @@ export default function App() {
             <p className={cn("text-slate-400", isDarkMode ? "text-slate-400" : "text-slate-500")}>Track your progress over time</p>
           </div>
           <div className="flex items-center gap-4 w-full md:w-auto">
-            <div className="relative flex-1 md:w-64">
-              <input 
-                type="text"
-                placeholder="Search history..."
-                value={historySearch}
-                onChange={(e) => setHistorySearch(e.target.value)}
-                className={cn(
-                  "w-full border rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2",
-                  isDarkMode 
-                    ? "bg-slate-900 border-slate-800 text-white focus:ring-indigo-500" 
-                    : "bg-white border-slate-200 text-slate-900 focus:ring-indigo-400"
-                )}
-              />
-              <LayoutDashboard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-            </div>
             <button 
               onClick={() => setState('landing')} 
               className={cn(
@@ -2960,16 +2938,16 @@ export default function App() {
         )}
         
         <div className="space-y-4">
-          {filteredHistory.length === 0 ? (
+          {history.length === 0 ? (
             <div className={cn(
               "text-center py-20 rounded-3xl border",
               isDarkMode ? "bg-slate-900/50 border-slate-800" : "bg-slate-50 border-slate-200"
             )}>
               <History className="w-12 h-12 text-slate-700 mx-auto mb-4" />
-              <p className="text-slate-500">No quiz history matches your search.</p>
+              <p className="text-slate-500">No quiz history available yet.</p>
             </div>
           ) : (
-            filteredHistory.map((item) => {
+            history.map((item) => {
               const topics = item.topics ? (typeof item.topics === 'string' ? JSON.parse(item.topics) : item.topics) : [];
               return (
                 <div key={item.id} className={cn(
