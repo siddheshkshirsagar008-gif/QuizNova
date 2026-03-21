@@ -449,6 +449,89 @@ async function startServer() {
       }
     });
 
+    app.post("/api/auth/forgot-password-send-otp", async (req, res) => {
+      const { email } = req.body;
+      const supabase = getSupabase();
+      if (!supabase) return res.status(500).json({ error: "Database not configured" });
+
+      try {
+        // Check if user exists
+        const { data: user } = await supabase.from("users").select("username").eq("email", email).maybeSingle();
+        if (!user) {
+          return res.status(404).json({ error: "No account found with this email address" });
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        await supabase.from("pending_users").delete().eq("email", email);
+        await supabase.from("pending_users").insert([{
+          email,
+          verification_token: otp,
+          username: user.username,
+          password: 'forgot_password_otp',
+          full_name: 'Forgot Password'
+        }]);
+
+        await sendOTPEmail(email, otp, user.username);
+        res.json({ message: "Reset code sent! Please check your inbox." });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.post("/api/auth/forgot-password-verify-otp", async (req, res) => {
+      const { email, otp } = req.body;
+      const supabase = getSupabase();
+      if (!supabase) return res.status(500).json({ error: "Database not configured" });
+
+      try {
+        const { data: pendingUser, error } = await supabase
+          .from("pending_users")
+          .select("*")
+          .eq("email", email)
+          .eq("verification_token", otp)
+          .maybeSingle();
+
+        if (error || !pendingUser) {
+          return res.status(400).json({ error: "Invalid or expired reset code" });
+        }
+        res.json({ message: "OTP verified. You can now reset your password." });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.post("/api/auth/reset-password", async (req, res) => {
+      const { email, otp, newPassword } = req.body;
+      const supabase = getSupabase();
+      if (!supabase) return res.status(500).json({ error: "Database not configured" });
+
+      try {
+        const { data: pendingUser, error } = await supabase
+          .from("pending_users")
+          .select("*")
+          .eq("email", email)
+          .eq("verification_token", otp)
+          .maybeSingle();
+
+        if (error || !pendingUser) {
+          return res.status(400).json({ error: "Verification session expired. Please start over." });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const { error: updateError } = await supabase
+          .from("users")
+          .update({ password: hashedPassword })
+          .eq("email", email);
+
+        if (updateError) throw updateError;
+
+        await supabase.from("pending_users").delete().eq("email", email);
+        res.json({ message: "Password reset successfully!" });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
     app.get("/api/db-status", async (req, res) => {
       try {
         const isConfigured = !!process.env.VITE_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;

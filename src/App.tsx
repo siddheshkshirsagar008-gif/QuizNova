@@ -625,7 +625,7 @@ const SettingsModal = ({
 };
 
 const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => void, isDark: boolean, accentColor: string }) => {
-  const [step, setStep] = useState<'login' | 'email' | 'otp' | 'profile'>('login');
+  const [step, setStep] = useState<'login' | 'email' | 'otp' | 'profile' | 'forgot_password_email' | 'forgot_password_otp' | 'reset_password'>('login');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [username, setUsername] = useState('');
@@ -747,6 +747,71 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
     }
   };
 
+  const handleForgotPasswordSendOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const res = await fetch('/api/auth/forgot-password-send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSuccessMessage(data.message);
+      setStep('forgot_password_otp');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPasswordVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/forgot-password-verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setStep('reset_password');
+      setSuccessMessage(data.message);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp, newPassword: password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSuccessMessage("Password reset successfully. Please login.");
+      setStep('login');
+      setPassword('');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const [showLegal, setShowLegal] = useState<string | null>(null);
 
   const bgColor = isDark ? "bg-slate-950" : "bg-slate-50";
@@ -824,13 +889,22 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
             <Brain className="w-10 h-10 text-white" />
           </div>
           <h2 className={cn("text-3xl font-bold tracking-tight", textColor)}>
-            {step === 'login' ? 'Welcome Back' : step === 'email' ? 'Create Account' : step === 'otp' ? 'Verify' : 'Profile'}
+            {step === 'login' ? 'Welcome Back' : 
+             step === 'email' ? 'Create Account' : 
+             step === 'otp' ? 'Verify' : 
+             step === 'profile' ? 'Profile' :
+             step === 'forgot_password_email' ? 'Reset Password' :
+             step === 'forgot_password_otp' ? 'Verify OTP' :
+             'New Password'}
           </h2>
           <p className={cn("mt-2", subTextColor)}>
             {step === 'login' ? 'Sign in to your account' :
              step === 'email' ? 'Start your journey with us' : 
              step === 'otp' ? "We've sent a code to your inbox" : 
-             'Tell us a bit about yourself'}
+             step === 'profile' ? 'Tell us a bit about yourself' :
+             step === 'forgot_password_email' ? 'Enter your email to receive an OTP' :
+             step === 'forgot_password_otp' ? "We've sent a code to your inbox" :
+             'Enter your new password'}
           </p>
         </div>
 
@@ -864,6 +938,19 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
                   className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 hover:bg-slate-500/10 rounded-xl transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5 text-slate-400" /> : <Eye className="w-5 h-5 text-slate-400" />}
+                </button>
+              </div>
+              <div className="flex justify-end mt-1">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setStep('forgot_password_email');
+                    setError(null);
+                    setSuccessMessage(null);
+                  }}
+                  className={cn("text-xs font-medium hover:underline", `text-${accentColor}-500`)}
+                >
+                  Forgot Password?
                 </button>
               </div>
             </div>
@@ -1034,6 +1121,111 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
               )}
             >
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Complete Setup'}
+            </button>
+          </form>
+        )}
+
+        {step === 'forgot_password_email' && (
+          <form onSubmit={handleForgotPasswordSendOTP} className="space-y-4">
+            <div>
+              <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Email Address</label>
+              <input 
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+                placeholder="milind@example.com"
+              />
+            </div>
+            <button 
+              type="submit"
+              disabled={isLoading}
+              className={cn(
+                "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 mt-4",
+                `bg-${accentColor}-500 text-white hover:bg-${accentColor}-600 shadow-${accentColor}-500/20`
+              )}
+            >
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Send OTP'}
+            </button>
+            <button 
+              type="button"
+              onClick={() => setStep('login')}
+              className={cn("w-full text-sm font-medium opacity-60 hover:opacity-100 mt-2", textColor)}
+            >
+              Back to Login
+            </button>
+          </form>
+        )}
+
+        {step === 'forgot_password_otp' && (
+          <form onSubmit={handleForgotPasswordVerifyOTP} className="space-y-6">
+            <div className={cn("p-4 rounded-2xl border border-dashed flex flex-col items-center text-center gap-2", borderColor)}>
+              <p className={cn("text-xs", subTextColor)}>Code sent to <span className="font-medium text-slate-400">{email}</span></p>
+            </div>
+            <div>
+              <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>Verification Code</label>
+              <input 
+                type="text"
+                required
+                maxLength={6}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                className={cn("w-full px-5 py-4 rounded-2xl border focus:outline-none focus:ring-2 transition-all text-center text-2xl font-bold tracking-[0.5em]", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+                placeholder="000000"
+              />
+            </div>
+            <button 
+              type="submit"
+              disabled={isLoading || otp.length !== 6}
+              className={cn(
+                "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-lg flex items-center justify-center gap-2",
+                `bg-${accentColor}-500 text-white hover:bg-${accentColor}-600 disabled:opacity-50`
+              )}
+            >
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify Code'}
+            </button>
+            <button 
+              type="button"
+              onClick={() => setStep('forgot_password_email')}
+              className={cn("w-full text-sm font-medium opacity-60 hover:opacity-100", textColor)}
+            >
+              Change Email
+            </button>
+          </form>
+        )}
+
+        {step === 'reset_password' && (
+          <form onSubmit={handleResetPassword} className="space-y-4">
+            <div>
+              <label className={cn("block text-sm font-medium mb-1.5 ml-1", subTextColor)}>New Password</label>
+              <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={cn("w-full px-5 py-3.5 rounded-2xl border focus:outline-none focus:ring-2 transition-all pr-12", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
+                  placeholder="••••••••"
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 hover:bg-slate-500/10 rounded-xl transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5 text-slate-400" /> : <Eye className="w-5 h-5 text-slate-400" />}
+                </button>
+              </div>
+            </div>
+            <button 
+              type="submit"
+              disabled={isLoading}
+              className={cn(
+                "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 mt-4",
+                `bg-${accentColor}-500 text-white hover:bg-${accentColor}-600`
+              )}
+            >
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Reset Password'}
             </button>
           </form>
         )}
