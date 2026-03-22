@@ -61,7 +61,7 @@ export const Logo: React.FC<LogoProps> = ({
         />
       </div>
       {showText && (
-        <span className={cn("text-xl font-bold tracking-tight", textClassName)}>
+        <span className={cn("text-base md:text-xl font-bold tracking-tight", textClassName)}>
           QuizNova
         </span>
       )}
@@ -72,7 +72,7 @@ export const Logo: React.FC<LogoProps> = ({
             initial={{ opacity: 0, x: -20, scale: 0.8 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 20, scale: 0.8 }}
-            className="absolute left-full ml-4 whitespace-nowrap bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg z-50 pointer-events-none top-1/2 -translate-y-1/2"
+            className="absolute left-full ml-4 whitespace-nowrap bg-indigo-600 text-white text-[10px] md:text-xs font-bold px-2 py-1 md:px-3 md:py-1.5 rounded-full shadow-lg z-50 pointer-events-none top-1/2 -translate-y-1/2 max-w-[150px] md:max-w-none truncate md:whitespace-nowrap"
           >
             {quote}
           </motion.div>

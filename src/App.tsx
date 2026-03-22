@@ -100,20 +100,20 @@ interface QuizResult {
 const ThemeToggle = ({ isDark, toggle }: { isDark: boolean, toggle: () => void }) => (
   <button 
     onClick={toggle}
-    className="p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all"
+    className="p-1.5 md:p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all"
     title="Toggle Theme"
   >
-    {isDark ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-slate-700" />}
+    {isDark ? <Sun className="w-4 h-4 md:w-5 h-5 text-yellow-400" /> : <Moon className="w-4 h-4 md:w-5 h-5 text-slate-700" />}
   </button>
 );
 
 const SettingsButton = ({ onClick }: { onClick: () => void }) => (
   <button 
     onClick={onClick}
-    className="p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all"
+    className="p-1.5 md:p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all"
     title="Settings"
   >
-    <Settings className="w-5 h-5 text-slate-400 hover:text-white" />
+    <Settings className="w-4 h-4 md:w-5 h-5 text-slate-400 hover:text-white" />
   </button>
 );
 
@@ -200,58 +200,67 @@ const SettingsModal = ({
             onClick={onClose}
             className={cn("absolute inset-0 backdrop-blur-sm", isDark ? "bg-slate-950/80" : "bg-slate-900/40")}
           />
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className={cn("relative w-full max-w-3xl border rounded-[2rem] overflow-hidden shadow-2xl flex flex-col md:flex-row min-h-[550px]", bgColor, borderColor)}
-          >
-            {/* Sidebar */}
-            <div className={cn("w-full md:w-64 border-r p-6 flex flex-col", sidebarBg, borderColor)}>
-              <div className="flex items-center gap-3 mb-8 px-2">
-                <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", `bg-${accentColor}-500`)}>
-                  <Settings className="w-5 h-5 text-white" />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className={cn(
+                "relative w-full max-w-3xl border rounded-[2rem] overflow-hidden shadow-2xl flex flex-col md:flex-row h-[90vh] md:h-auto md:min-h-[550px]", 
+                bgColor, 
+                borderColor
+              )}
+            >
+              {/* Sidebar / Mobile Tabs */}
+              <div className={cn("w-full md:w-64 border-b md:border-b-0 md:border-r p-4 md:p-6 flex flex-col", sidebarBg, borderColor)}>
+                <div className="flex items-center justify-between md:justify-start gap-3 mb-4 md:mb-8 px-2">
+                  <div className="flex items-center gap-3">
+                    <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", `bg-${accentColor}-500`)}>
+                      <Settings className="w-5 h-5 text-white" />
+                    </div>
+                    <h2 className={cn("text-lg font-bold", textColor)}>Settings</h2>
+                  </div>
+                  <button onClick={onClose} className={cn("md:hidden transition-colors", isDark ? "text-slate-500 hover:text-white" : "text-slate-400 hover:text-slate-900")}>
+                    <X className="w-6 h-6" />
+                  </button>
                 </div>
-                <h2 className={cn("text-lg font-bold", textColor)}>Settings</h2>
-              </div>
 
-              <nav className="space-y-1 flex-1">
-                {tabs.map((tab) => (
+                <nav className="flex md:flex-col gap-1 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 scrollbar-hide flex-1">
+                  {tabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => { setActiveTab(tab.id as any); }}
+                      className={cn(
+                        "flex-shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-medium transition-all duration-200",
+                        activeTab === tab.id 
+                          ? `bg-${accentColor}-500 text-white shadow-lg shadow-${accentColor}-500/20` 
+                          : cn(subTextColor, isDark ? "hover:text-white hover:bg-white/5" : "hover:text-slate-900 hover:bg-slate-200")
+                      )}
+                    >
+                      <tab.icon className="w-4 h-4" />
+                      {tab.label}
+                    </button>
+                  ))}
+                </nav>
+
+                <div className="hidden md:block mt-auto pt-6 border-t border-slate-800/50">
                   <button
-                    key={tab.id}
-                    onClick={() => { setActiveTab(tab.id as any); }}
+                    onClick={onLogout}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
-                      activeTab === tab.id 
-                        ? `bg-${accentColor}-500 text-white shadow-lg shadow-${accentColor}-500/20` 
-                        : cn(subTextColor, isDark ? "hover:text-white hover:bg-white/5" : "hover:text-slate-900 hover:bg-slate-200")
+                      "text-red-500 hover:bg-red-500/10"
                     )}
                   >
-                    <tab.icon className="w-4 h-4" />
-                    {tab.label}
+                    <LogOut className="w-4 h-4" />
+                    Sign Out
                   </button>
-                ))}
-              </nav>
-
-              <div className="mt-auto pt-6 border-t border-slate-800/50">
-                <button
-                  onClick={onLogout}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
-                    "text-red-500 hover:bg-red-500/10"
-                  )}
-                >
-                  <LogOut className="w-4 h-4" />
-                  Sign Out
-                </button>
+                </div>
               </div>
-            </div>
 
-            {/* Content Area */}
-            <div className="flex-1 p-8 overflow-y-auto">
-              <button onClick={onClose} className={cn("absolute top-6 right-6 transition-colors", isDark ? "text-slate-500 hover:text-white" : "text-slate-400 hover:text-slate-900")}>
-                <X className="w-6 h-6" />
-              </button>
+              {/* Content Area */}
+              <div className="flex-1 p-5 md:p-8 overflow-y-auto relative">
+                <button onClick={onClose} className={cn("hidden md:block absolute top-6 right-6 transition-colors", isDark ? "text-slate-500 hover:text-white" : "text-slate-400 hover:text-slate-900")}>
+                  <X className="w-6 h-6" />
+                </button>
 
               <AnimatePresence mode="wait">
                 {activeTab === 'api' && (
@@ -263,7 +272,7 @@ const SettingsModal = ({
                     className="space-y-6"
                   >
                     <div>
-                      <h3 className={cn("text-xl font-bold mb-1", textColor)}>AI Configuration</h3>
+                      <h3 className={cn("text-lg md:text-xl font-bold mb-1", textColor)}>AI Configuration</h3>
                       <p className={cn("text-sm", subTextColor)}>Manage your Gemini AI settings and quotas.</p>
                     </div>
 
@@ -366,6 +375,19 @@ const SettingsModal = ({
                     >
                       Apply Changes
                     </button>
+
+                    <div className="md:hidden pt-4">
+                      <button
+                        onClick={onLogout}
+                        className={cn(
+                          "w-full flex items-center justify-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold transition-all duration-200 border",
+                          isDark ? "border-red-500/20 text-red-500 bg-red-500/5" : "border-red-200 text-red-500 bg-red-50 shadow-sm"
+                        )}
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign Out Account
+                      </button>
+                    </div>
                   </motion.div>
                 )}
 
@@ -1320,6 +1342,28 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Map of accent colors to their hex values (Tailwind 500 shades)
+    const colorMap: Record<string, string> = {
+      indigo: '#6366f1',
+      emerald: '#10b981',
+      rose: '#f43f5e',
+      amber: '#f59e0b',
+      sky: '#0ea5e9',
+      violet: '#8b5cf6'
+    };
+    
+    const color = colorMap[accentColor] || colorMap.indigo;
+    document.documentElement.style.setProperty('--scrollbar-thumb-hover', color);
+    
+    // Also update the thumb color slightly based on theme
+    if (isDarkMode) {
+      document.documentElement.style.setProperty('--scrollbar-thumb', `${color}44`); // 26% opacity
+    } else {
+      document.documentElement.style.setProperty('--scrollbar-thumb', `${color}33`); // 20% opacity
+    }
+  }, [accentColor, isDarkMode]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get('payment');
     
@@ -1845,62 +1889,62 @@ export default function App() {
   };
 
   const renderTierSelection = () => (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
+    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 py-12">
+      <div className="text-center mb-10">
+        <h2 className={cn("text-3xl md:text-4xl font-bold mb-3", isDarkMode ? "text-white" : "text-slate-900")}>Choose Your Path</h2>
+        <p className={cn("text-base md:text-lg max-w-lg mx-auto", isDarkMode ? "text-slate-400" : "text-slate-600")}>Unlock the full potential of AI-powered learning and ace your exams.</p>
+      </div>
+
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className={cn(
-          "w-full max-w-5xl grid md:grid-cols-2 gap-8 p-4",
+          "w-full max-w-5xl grid md:grid-cols-2 gap-6 md:gap-8 p-2 md:p-4",
         )}
       >
         {/* Free Tier */}
         <div className={cn(
-          "border rounded-3xl p-8 flex flex-col shadow-xl transition-all hover:shadow-2xl",
+          "border rounded-[2.5rem] p-6 md:p-8 flex flex-col shadow-xl transition-all hover:shadow-2xl relative",
           isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
         )}>
           <div className="mb-6">
-            <span className="px-3 py-1 rounded-full bg-slate-500/10 text-slate-500 text-xs font-bold uppercase tracking-wider">Current Plan</span>
-            <h3 className={cn("text-3xl font-bold mt-4", isDarkMode ? "text-white" : "text-slate-900")}>Free Learner</h3>
-            <p className={cn("mt-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>Perfect for casual self-study.</p>
+            <div className="flex items-center justify-between">
+              <span className="px-3 py-1 rounded-full bg-slate-500/10 text-slate-500 text-[10px] font-bold uppercase tracking-wider">Current Plan</span>
+            </div>
+            <h3 className={cn("text-2xl md:text-3xl font-bold mt-4", isDarkMode ? "text-white" : "text-slate-900")}>Free Learner</h3>
+            <p className={cn("mt-2 text-sm md:text-base", isDarkMode ? "text-slate-400" : "text-slate-600")}>Perfect for casual self-study.</p>
           </div>
           
           <div className="text-4xl font-bold mb-8">₹0<span className="text-sm font-normal text-slate-500">/month</span></div>
           
-          <ul className="space-y-4 mb-10 flex-1">
+          <ul className="space-y-3 md:space-y-4 mb-10 flex-1">
             <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-emerald-500" />
+              <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0">
+                <Check className="w-3 h-3 text-emerald-500" />
+              </div>
               <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>50 MCQs per day</span>
             </li>
-            <li className="flex items-center gap-3 text-sm opacity-60">
-              <Lock className="w-5 h-5 text-slate-400" />
-              <span className={isDarkMode ? "text-slate-500" : "text-slate-500"}>Detailed explanations</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm opacity-60">
-              <Lock className="w-5 h-5 text-slate-400" />
-              <span className={isDarkMode ? "text-slate-500" : "text-slate-500"}>Priority generation</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm opacity-60">
-              <Lock className="w-5 h-5 text-slate-400" />
-              <span className={isDarkMode ? "text-slate-500" : "text-slate-500"}>Zero Ads</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm opacity-60">
-              <Lock className="w-5 h-5 text-slate-400" />
-              <span className={isDarkMode ? "text-slate-500" : "text-slate-500"}>25/50 MCQs at a time</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm opacity-60">
-              <Lock className="w-5 h-5 text-slate-400" />
-              <span className={isDarkMode ? "text-slate-500" : "text-slate-500"}>Detailed history report</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm opacity-60">
-              <Lock className="w-5 h-5 text-slate-400" />
-              <span className={isDarkMode ? "text-slate-500" : "text-slate-500"}>Exam mode</span>
-            </li>
+            {[
+              "Detailed explanations",
+              "Priority generation",
+              "Zero Ads",
+              "25/50 MCQs at a time",
+              "Detailed history report",
+              "Exam mode"
+            ].map((feature) => (
+              <li key={feature} className="flex items-center gap-3 text-sm opacity-60">
+                <div className="w-5 h-5 rounded-full bg-slate-500/10 flex items-center justify-center shrink-0">
+                  <Lock className="w-3 h-3 text-slate-400" />
+                </div>
+                <span className={isDarkMode ? "text-slate-500" : "text-slate-500"}>{feature}</span>
+              </li>
+            ))}
           </ul>
           
           <button 
             onClick={() => setState('landing')}
             className={cn(
-              "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border shadow-sm",
+              "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border shadow-sm text-sm md:text-base",
               isDarkMode ? "border-slate-700 text-slate-400 hover:bg-slate-800" : "border-slate-200 text-slate-600 hover:bg-slate-50"
             )}
           >
@@ -1910,55 +1954,45 @@ export default function App() {
 
         {/* Pro Tier */}
         <div className={cn(
-          "border rounded-3xl p-8 flex flex-col shadow-2xl relative overflow-hidden transition-all hover:shadow-indigo-500/10",
+          "border rounded-[2.5rem] p-6 md:p-8 flex flex-col shadow-2xl relative overflow-hidden transition-all hover:shadow-indigo-500/20 group",
           isDarkMode ? "bg-slate-900 border-indigo-500/30" : "bg-white border-indigo-200"
         )}>
-          <div className="absolute top-0 right-0 bg-indigo-500 text-white px-6 py-1 rounded-bl-2xl text-xs font-bold uppercase tracking-widest">Recommended</div>
+          <div className="absolute top-0 right-0 bg-indigo-500 text-white px-6 py-1.5 rounded-bl-2xl text-[10px] font-bold uppercase tracking-widest shadow-lg z-10">Recommended</div>
           
           <div className="mb-6">
-            <span className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-500 text-xs font-bold uppercase tracking-wider">Power User</span>
-            <h3 className={cn("text-3xl font-bold mt-4", isDarkMode ? "text-white" : "text-slate-900")}>Pro Scholar</h3>
-            <p className={cn("mt-2", isDarkMode ? "text-slate-400" : "text-slate-600")}>For serious exam preparation.</p>
+            <span className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-500 text-[10px] font-bold uppercase tracking-wider">Power User</span>
+            <h3 className={cn("text-2xl md:text-3xl font-bold mt-4", isDarkMode ? "text-white" : "text-slate-900")}>Pro Scholar</h3>
+            <p className={cn("mt-2 text-sm md:text-base", isDarkMode ? "text-slate-400" : "text-slate-600")}>For serious exam preparation.</p>
           </div>
           
-          <div className="text-4xl font-bold mb-8">₹1,499<span className="text-sm font-normal text-slate-500">/month</span></div>
+          <div className="text-4xl font-bold mb-8 flex items-baseline gap-1">
+            ₹1,499<span className="text-sm font-normal text-slate-500">/month</span>
+          </div>
           
-          <ul className="space-y-4 mb-10 flex-1">
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-indigo-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>500 MCQs per day</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-indigo-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Detailed AI explanations</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-indigo-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Priority generation</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-indigo-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Zero Ads</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-indigo-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>25/50 MCQs at a time</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-indigo-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Detailed history report</span>
-            </li>
-            <li className="flex items-center gap-3 text-sm">
-              <Check className="w-5 h-5 text-indigo-500" />
-              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>Exam mode</span>
-            </li>
+          <ul className="space-y-3 md:space-y-4 mb-10 flex-1">
+            {[
+              "500 MCQs per day",
+              "Detailed AI explanations",
+              "Priority generation",
+              "Zero Ads",
+              "25/50 MCQs at a time",
+              "Detailed history report",
+              "Exam mode"
+            ].map((feature) => (
+              <li key={feature} className="flex items-center gap-3 text-sm">
+                <div className="w-5 h-5 rounded-full bg-indigo-500/10 flex items-center justify-center shrink-0">
+                  <Check className="w-3 h-3 text-indigo-500" />
+                </div>
+                <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>{feature}</span>
+              </li>
+            ))}
           </ul>
           
           <button 
             onClick={handleUpgrade}
             disabled={isForgotLoading}
             className={cn(
-              "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2",
+              "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 text-sm md:text-base",
               isForgotLoading ? "bg-indigo-500/50 text-white" : "bg-indigo-500 text-white hover:bg-indigo-600"
             )}
           >
@@ -1987,8 +2021,8 @@ export default function App() {
     const greeting = getGreetingInfo();
 
     return (
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+      <div className="max-w-7xl mx-auto px-4 py-12 flex flex-col">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12 order-1">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -1999,13 +2033,13 @@ export default function App() {
                 {greeting.text}
               </span>
             </div>
-            <h1 className={cn("text-4xl md:text-5xl font-bold mb-3 tracking-tight", isDarkMode ? "text-white" : "text-slate-900")}>
+            <h1 className={cn("text-3xl md:text-5xl font-bold mb-3 tracking-tight", isDarkMode ? "text-white" : "text-slate-900")}>
               Welcome back, <span className={cn("font-extrabold drop-shadow-sm", `text-${accentColor}-500`)} style={{ textShadow: isDarkMode ? `0 0 20px var(--tw-shadow-color)` : 'none' }}>{currentUser?.username || 'Learner'}</span>!
             </h1>
             <p className={cn("text-lg", isDarkMode ? "text-slate-400" : "text-slate-600")}>What would you like to master today?</p>
           </motion.div>
 
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-3">
             <button 
               onClick={() => { fetchHistory(); setState('history'); }}
               className={cn(
@@ -2018,11 +2052,23 @@ export default function App() {
               <History className="w-5 h-5" />
               History
             </button>
+            <button 
+              onClick={() => {
+                const el = document.getElementById('new-session');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className={cn(
+                "flex items-center gap-2 px-6 py-3 rounded-2xl bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200",
+              )}
+            >
+              <Upload className="w-5 h-5" />
+              Upload File
+            </button>
           </div>
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 order-4 md:order-2">
           {[
             { label: 'Quizzes Taken', value: totalQuizzes, icon: FileText, color: 'indigo' },
             { label: 'Avg. Accuracy', value: `${avgAccuracy}%`, icon: CheckCircle2, color: 'emerald' },
@@ -2050,7 +2096,7 @@ export default function App() {
         </div>
 
         {/* Usage & Ads Section */}
-        <div className="mb-12 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="mb-12 grid grid-cols-1 lg:grid-cols-3 gap-6 order-2 md:order-3">
           <div className={cn(
             currentUser?.tier === 'pro' ? "lg:col-span-3" : "lg:col-span-1",
             "p-6 rounded-[2rem] border flex flex-col justify-between",
@@ -2102,11 +2148,11 @@ export default function App() {
           )}
         </div>
 
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className={cn("text-3xl font-bold", isDarkMode ? "text-white" : "text-slate-900")}>New Learning Session</h2>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Questions to generate:</span>
+        <div id="new-session" className="max-w-4xl mx-auto order-5 md:order-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+            <h2 className={cn("text-2xl md:text-3xl font-bold", isDarkMode ? "text-white" : "text-slate-900")}>New Learning Session</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest">Questions to generate:</span>
               <div className={cn(
                 "flex p-1 rounded-xl border",
                 isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200 shadow-sm"
@@ -2188,7 +2234,7 @@ export default function App() {
             <Settings className="w-6 h-6 text-indigo-500" />
           </div>
           <div>
-            <h2 className={cn("text-2xl font-bold", textColor)}>Parsing Configuration</h2>
+            <h2 className={cn("text-xl md:text-2xl font-bold", textColor)}>Parsing Configuration</h2>
             <p className={cn("text-sm", subTextColor)}>Choose how you want to extract questions</p>
           </div>
         </div>
@@ -2324,8 +2370,8 @@ export default function App() {
   const renderModeSelection = () => (
     <div className="max-w-4xl mx-auto py-12 px-4">
       <div className="text-center mb-12">
-        <h2 className={cn("text-4xl font-bold mb-4", isDarkMode ? "text-white" : "text-slate-900")}>Configure Your Session</h2>
-        <p className={cn("text-lg", isDarkMode ? "text-slate-400" : "text-slate-600")}>Select your preferred learning style and length</p>
+        <h2 className={cn("text-3xl md:text-4xl font-bold mb-4", isDarkMode ? "text-white" : "text-slate-900")}>Configure Your Session</h2>
+        <p className={cn("text-base md:text-lg", isDarkMode ? "text-slate-400" : "text-slate-600")}>Select your preferred learning style and length</p>
       </div>
 
       {analysis && (
@@ -2495,27 +2541,41 @@ export default function App() {
     const progress = selectedQuestions.length > 0 ? (answeredCount / selectedQuestions.length) * 100 : 0;
 
     return (
-      <div className="max-w-3xl mx-auto py-8 px-4">
+      <div className="max-w-3xl mx-auto py-4 md:py-8 px-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", isDarkMode ? "bg-indigo-500/20" : "bg-indigo-100")}>
-              <span className="text-indigo-500 font-bold">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            <div className={cn("w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shrink-0", isDarkMode ? "bg-indigo-500/20" : "bg-indigo-100")}>
+              <span className="text-indigo-500 font-bold text-sm md:text-base">
                 {quizMode === 'all' ? currentRound * ROUND_SIZE + currentQuestionIndex + 1 : currentQuestionIndex + 1}
               </span>
             </div>
             <div>
-              <h3 className={cn("text-sm font-medium uppercase tracking-wider", isDarkMode ? "text-slate-400" : "text-slate-500")}>Question</h3>
-              <p className={cn("font-bold", isDarkMode ? "text-white" : "text-slate-900")}>
+              <h3 className={cn("text-[10px] md:text-sm font-medium uppercase tracking-wider", isDarkMode ? "text-slate-400" : "text-slate-500")}>Question</h3>
+              <p className={cn("text-xs md:text-base font-bold", isDarkMode ? "text-white" : "text-slate-900")}>
                 {quizMode === 'all' ? currentRound * ROUND_SIZE + currentQuestionIndex + 1 : currentQuestionIndex + 1} of {quizMode === 'all' ? questions.length : selectedQuestions.length}
               </p>
+            </div>
+            
+            <div className="ml-auto md:hidden">
+              <button 
+                onClick={() => finishQuiz()}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all duration-200 border shadow-lg",
+                  isDarkMode 
+                    ? "bg-red-500/20 text-red-400 border-red-500/30" 
+                    : "bg-red-50 text-red-600 border-red-200"
+                )}
+              >
+                End
+              </button>
             </div>
           </div>
 
           <button 
             onClick={() => finishQuiz()}
             className={cn(
-              "px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] border shadow-lg",
+              "hidden md:block px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] border shadow-lg",
               isDarkMode 
                 ? "bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500 hover:text-white shadow-red-500/10" 
                 : "bg-red-50 hover:bg-red-500 text-red-600 hover:text-white border-red-200 shadow-red-500/5"
@@ -2524,9 +2584,9 @@ export default function App() {
             End Quiz
           </button>
 
-          <div className="text-right">
-            <h3 className={cn("text-sm font-medium uppercase tracking-wider", isDarkMode ? "text-slate-400" : "text-slate-500")}>Progress</h3>
-            <div className={cn("w-48 h-3 rounded-full mt-2 overflow-hidden border relative", isDarkMode ? "bg-slate-800 border-slate-700" : "bg-slate-100 border-slate-200")}>
+          <div className="w-full md:w-auto text-center md:text-right">
+            <h3 className={cn("text-[10px] md:text-sm font-medium uppercase tracking-wider", isDarkMode ? "text-slate-400" : "text-slate-500")}>Progress</h3>
+            <div className={cn("w-full md:w-48 h-2 md:h-3 rounded-full mt-2 overflow-hidden border relative", isDarkMode ? "bg-slate-800 border-slate-700" : "bg-slate-100 border-slate-200")}>
               <motion.div 
                 className={cn("h-full absolute left-0 top-0", `bg-${accentColor}-500`)}
                 initial={false}
@@ -2544,20 +2604,20 @@ export default function App() {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           className={cn(
-            "border rounded-3xl p-8 shadow-2xl",
+            "border rounded-2xl md:rounded-3xl p-5 md:p-8 shadow-2xl",
             isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
           )}
         >
-          <h2 className={cn("text-2xl font-bold mb-8 leading-relaxed", isDarkMode ? "text-white" : "text-slate-900")}>
+          <h2 className={cn("text-lg md:text-2xl font-bold mb-6 md:mb-8 leading-relaxed", isDarkMode ? "text-white" : "text-slate-900")}>
             {stripQuestionNumber(q.question)}
           </h2>
 
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-3 md:gap-4">
             {q.options.map((option, idx) => {
               const isCorrect = idx === q.correctAnswerIndex;
               const isSelected = userAnswer === idx;
               
-              let buttonClass = "p-6 rounded-2xl border-2 text-left transition-all duration-200 flex items-center justify-between group hover:scale-[1.01] active:scale-[0.99]";
+              let buttonClass = "p-4 md:p-6 rounded-xl md:rounded-2xl border-2 text-left transition-all duration-200 flex items-center justify-between group hover:scale-[1.01] active:scale-[0.99]";
               
               if (quizType === 'exam') {
                 if (isSelected) {
@@ -2740,8 +2800,8 @@ export default function App() {
           >
             <Trophy className="w-12 h-12 text-indigo-500" />
           </motion.div>
-          <h2 className={cn("text-4xl font-bold mb-4", isDarkMode ? "text-white" : "text-slate-900")}>Quiz Completed!</h2>
-          <p className={cn("text-xl max-w-2xl mx-auto", isDarkMode ? "text-slate-400" : "text-slate-600")}>{getPerformanceSummary(accuracy)}</p>
+          <h2 className={cn("text-3xl md:text-4xl font-bold mb-4", isDarkMode ? "text-white" : "text-slate-900")}>Quiz Completed!</h2>
+          <p className={cn("text-lg md:text-xl max-w-2xl mx-auto", isDarkMode ? "text-slate-400" : "text-slate-600")}>{getPerformanceSummary(accuracy)}</p>
           
           {error && (
             <motion.div 
@@ -3250,27 +3310,29 @@ export default function App() {
         "border-b backdrop-blur-xl sticky top-0 z-50",
         isDarkMode ? "border-white/10" : "border-slate-200 bg-white/80"
       )}>
-        <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 h-16 md:h-20 flex items-center justify-between">
           <div 
-            className="flex items-center gap-3 cursor-pointer"
+            className="flex items-center gap-2 md:gap-3 cursor-pointer shrink-0"
             onClick={() => setState('landing')}
           >
             <Logo 
-              imageClassName="w-10 h-10 rounded-xl shadow-lg"
+              imageClassName="w-8 h-8 md:w-10 md:h-10 rounded-xl shadow-lg"
               showText={true}
+              textClassName="text-lg md:text-xl"
             />
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5 md:gap-4">
             {currentUser?.tier !== 'pro' && state !== 'auth' && (
               <button
                 onClick={() => setState('tier_selection')}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-[1.05] active:scale-[0.95] transition-all duration-200",
+                  "flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1 md:py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-[9px] md:text-sm shadow-lg shadow-orange-500/20 hover:scale-[1.05] active:scale-[0.95] transition-all duration-200",
                 )}
               >
-                <Zap className="w-4 h-4 fill-current" />
-                <span className="hidden sm:inline">Upgrade to Pro</span>
+                <Zap className="w-2.5 h-2.5 md:w-4 md:h-4 fill-current" />
+                <span className="hidden xs:inline">Upgrade</span>
+                <span className="hidden sm:inline"> to Pro</span>
               </button>
             )}
             <SettingsButton onClick={() => setShowSettings(true)} />
@@ -3280,14 +3342,14 @@ export default function App() {
                 <button
                   onClick={handleLogout}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-xl border transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] font-medium text-sm",
+                    "flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1 md:py-2 rounded-xl border transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] font-medium text-[9px] md:text-sm",
                     isDarkMode 
                       ? "bg-white/5 border-white/10 hover:bg-white/10 text-red-400 hover:text-red-300" 
                       : "bg-white border-slate-200 hover:bg-slate-50 text-red-500 hover:text-red-600 shadow-sm"
                   )}
                   title="Sign Out"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-2.5 h-2.5 md:w-4 md:h-4" />
                   <span className="hidden md:inline">Sign Out</span>
                 </button>
               ) : (
@@ -3296,10 +3358,10 @@ export default function App() {
                     setState('auth');
                   }}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm shadow-lg shadow-indigo-500/20 hover:scale-[1.05] active:scale-[0.95] transition-all duration-200",
+                    "flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1 md:py-2 rounded-xl bg-indigo-600 text-white font-bold text-[9px] md:text-sm shadow-lg shadow-indigo-500/20 hover:scale-[1.05] active:scale-[0.95] transition-all duration-200",
                   )}
                 >
-                  <LogIn className="w-4 h-4" />
+                  <LogIn className="w-2.5 h-2.5 md:w-4 md:h-4" />
                   <span>Sign In</span>
                 </button>
               )
