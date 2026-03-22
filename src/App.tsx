@@ -31,6 +31,7 @@ import {
   Lock,
   User,
   LogOut,
+  LogIn,
   Shield,
   UserCircle,
   Cpu,
@@ -1242,25 +1243,13 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
 
 import { Logo } from './components/Logo';
 
-const DEFAULT_USER = {
-  username: 'guest',
-  email: 'guest@example.com',
-  full_name: 'Guest User',
-  bio: 'Welcome to QuizNova!',
-  api_key: '',
-  tier: 'pro' as const,
-  daily_usage: 0,
-  id: 'guest-id'
-};
-
 export default function App() {
   const [state, setState] = useState<AppState>(() => {
-    const savedUser = localStorage.getItem('user_info');
-    return savedUser ? 'landing' : 'auth';
+    return 'landing';
   });
   const [analysis, setAnalysis] = useState<{ topics: string[], level: string } | null>(null);
   const [currentUser, setCurrentUser] = useState<{ username: string, email: string, full_name?: string, bio?: string, api_key: string, tier: 'free' | 'pro', daily_usage: number } | null>(
-    localStorage.getItem('user_info') ? JSON.parse(localStorage.getItem('user_info')!) : DEFAULT_USER
+    localStorage.getItem('user_info') ? JSON.parse(localStorage.getItem('user_info')!) : null
   );
   const [isDarkMode, setIsDarkMode] = useState(localStorage.getItem('theme') !== 'light');
   const [accentColor, setAccentColor] = useState(localStorage.getItem('accent_color') || 'indigo');
@@ -1303,7 +1292,7 @@ export default function App() {
 
   useEffect(() => {
     const syncUser = async () => {
-      if (currentUser && currentUser.username !== 'guest') {
+      if (currentUser) {
         try {
           const res = await fetch(`/api/me?username=${encodeURIComponent(currentUser.username)}&clientDate=${encodeURIComponent(getLocalDateString())}`);
           if (!res.ok) {
@@ -1483,7 +1472,7 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('user_info');
-    setCurrentUser(DEFAULT_USER);
+    setCurrentUser(null);
     setState('auth');
     setShowSettings(false);
   };
@@ -1596,7 +1585,6 @@ export default function App() {
   };
 
   const onDrop = async (acceptedFiles: File[]) => {
-    if (!currentUser) return;
     const file = acceptedFiles[0];
     if (!file || file.type !== 'application/pdf') {
       setError("Please upload a valid PDF file.");
@@ -1619,7 +1607,10 @@ export default function App() {
   };
 
   const startGeneration = async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setState('auth');
+      return;
+    }
     
     setState('processing');
     setError(null);
@@ -1662,7 +1653,10 @@ export default function App() {
   });
 
   const nextRound = async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setState('auth');
+      return;
+    }
     setError(null);
     
     const baseStart = parseInt(parsingStartIndex) || 1;
@@ -1713,7 +1707,10 @@ export default function App() {
   };
 
   const startQuiz = async (mode: number | 'all', roundIndex: number = 0, overrideQuestions?: MCQ[]) => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setState('auth');
+      return;
+    }
     
     setQuizMode(mode);
     setCurrentRound(roundIndex);
@@ -3279,19 +3276,33 @@ export default function App() {
             <SettingsButton onClick={() => setShowSettings(true)} />
             <ThemeToggle isDark={isDarkMode} toggle={() => setIsDarkMode(!isDarkMode)} />
             {state !== 'auth' && (
-              <button
-                onClick={handleLogout}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-xl border transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] font-medium text-sm",
-                  isDarkMode 
-                    ? "bg-white/5 border-white/10 hover:bg-white/10 text-red-400 hover:text-red-300" 
-                    : "bg-white border-slate-200 hover:bg-slate-50 text-red-500 hover:text-red-600 shadow-sm"
-                )}
-                title="Sign Out"
-              >
-                <LogOut className="w-4 h-4" />
-                <span className="hidden md:inline">Sign Out</span>
-              </button>
+              currentUser ? (
+                <button
+                  onClick={handleLogout}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-xl border transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] font-medium text-sm",
+                    isDarkMode 
+                      ? "bg-white/5 border-white/10 hover:bg-white/10 text-red-400 hover:text-red-300" 
+                      : "bg-white border-slate-200 hover:bg-slate-50 text-red-500 hover:text-red-600 shadow-sm"
+                  )}
+                  title="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span className="hidden md:inline">Sign Out</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setState('auth');
+                  }}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm shadow-lg shadow-indigo-500/20 hover:scale-[1.05] active:scale-[0.95] transition-all duration-200",
+                  )}
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Sign In</span>
+                </button>
+              )
             )}
           </div>
         </div>

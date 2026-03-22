@@ -800,18 +800,16 @@ async function startServer() {
       const { username, clientDate } = req.query;
       if (!username) return res.status(400).json({ error: "Username required" });
       
-      const isGuest = username === 'guest';
-
-      if (!getSupabase() || isGuest) {
+      if (!getSupabase()) {
         return res.json({
           username: username as string,
           email: "",
-          full_name: isGuest ? "Guest User" : username as string,
+          full_name: username as string,
           bio: "",
           api_key: "",
           tier: "free",
           daily_usage: 0,
-          id: isGuest ? "guest-id" : ""
+          id: ""
         });
       }
 
@@ -909,9 +907,6 @@ async function startServer() {
 
     app.post("/api/upgrade", async (req, res) => {
       const { username } = req.body;
-      if (username === 'guest') {
-        return res.json({ success: true, tier: 'pro' });
-      }
       await supabase
         .from('users')
         .update({ tier: 'pro' })
