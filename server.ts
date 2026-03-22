@@ -907,48 +907,6 @@ async function startServer() {
       }
     });
 
-    app.post("/api/usage/reset", async (req, res) => {
-      try {
-        const { username, clientDate } = req.body;
-        if (!username) return res.status(400).json({ error: "Username required" });
-
-        const { data: profile, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('username', username)
-          .single();
-
-        if (error || !profile) return res.status(404).json({ error: "User not found" });
-
-        const now = new Date();
-        const toISODate = (d: any) => {
-          try {
-            if (!d) return '';
-            const date = new Date(d);
-            if (isNaN(date.getTime())) return '';
-            const year = date.getUTCFullYear();
-            const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-            const day = String(date.getUTCDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-          } catch (e) {
-            return '';
-          }
-        };
-
-        const today = clientDate || toISODate(now);
-
-        await supabase
-          .from('users')
-          .update({ daily_usage: 0, last_reset_date: today })
-          .eq('id', profile.id);
-
-        res.json({ success: true, message: "Usage reset successfully", newUsage: 0 });
-      } catch (err: any) {
-        console.error("Usage reset error:", err.message || err);
-        res.status(500).json({ error: "Internal server error" });
-      }
-    });
-
     app.post("/api/upgrade", async (req, res) => {
       const { username } = req.body;
       if (username === 'guest') {

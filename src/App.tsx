@@ -130,8 +130,7 @@ const SettingsModal = ({
   exportData,
   onUpgrade,
   history,
-  onUpdateAccentColor,
-  onResetUsage
+  onUpdateAccentColor
 }: { 
   isOpen: boolean, 
   onClose: () => void, 
@@ -146,14 +145,11 @@ const SettingsModal = ({
   exportData: () => void,
   onUpgrade: () => void,
   history: any[],
-  onUpdateAccentColor: (color: string) => void,
-  onResetUsage: () => Promise<void>
+  onUpdateAccentColor: (color: string) => void
 }) => {
   const [key, setKey] = useState(currentKey);
   const [showKey, setShowKey] = useState(false);
   const [activeTab, setActiveTab] = useState<'api' | 'stats' | 'preferences'>('api');
-  const [isResetting, setIsResetting] = useState(false);
-  const [resetSuccess, setResetSuccess] = useState(false);
   
   const [soundEnabled, setSoundEnabled] = useState(localStorage.getItem('sound_enabled') !== 'false');
 
@@ -508,7 +504,7 @@ const SettingsModal = ({
 
                       <div className={cn("pt-4 border-t space-y-3", borderColor)}>
                         <h4 className={cn("text-sm font-medium mb-2", textColor)}>Data Management</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3">
                           <button 
                             onClick={exportData}
                             className={cn("flex items-center gap-3 p-4 rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border shadow-sm hover:shadow-md", inputBg, borderColor, textColor, "hover:bg-slate-200 dark:hover:bg-slate-700")}
@@ -517,33 +513,6 @@ const SettingsModal = ({
                             <div className="text-left">
                               <p className="text-sm font-bold">Export History</p>
                               <p className="text-[11px] text-slate-500">Download results as JSON</p>
-                            </div>
-                          </button>
-
-                          <button 
-                            onClick={async () => {
-                              if (window.confirm('Are you sure you want to reset your daily usage? This is for testing purposes.')) {
-                                setIsResetting(true);
-                                await onResetUsage();
-                                setIsResetting(false);
-                                setResetSuccess(true);
-                                setTimeout(() => setResetSuccess(false), 3000);
-                              }
-                            }}
-                            disabled={isResetting}
-                            className={cn(
-                              "flex items-center gap-3 p-4 rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border shadow-sm hover:shadow-md",
-                              inputBg, borderColor, textColor, 
-                              "hover:bg-rose-500/10 hover:border-rose-500/30",
-                              isResetting && "opacity-50 cursor-not-allowed"
-                            )}
-                          >
-                            <RefreshCw className={cn("w-5 h-5 text-slate-400", isResetting && "animate-spin")} />
-                            <div className="text-left">
-                              <p className={cn("text-sm font-bold", resetSuccess ? "text-emerald-500" : "")}>
-                                {resetSuccess ? "Usage Reset!" : "Reset Usage"}
-                              </p>
-                              <p className="text-[11px] text-slate-500">Reset your daily MCQ quota</p>
                             </div>
                           </button>
                         </div>
@@ -1470,28 +1439,6 @@ export default function App() {
       setError("An error occurred. Please try again later.");
     } finally {
       setIsForgotLoading(false);
-    }
-  };
-
-  const handleResetUsage = async () => {
-    if (!currentUser) return;
-    try {
-      const res = await fetch('/api/usage/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          username: currentUser.username,
-          clientDate: getLocalDateString()
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const updatedUser = { ...currentUser, daily_usage: 0 };
-        setCurrentUser(updatedUser);
-        localStorage.setItem('user_info', JSON.stringify(updatedUser));
-      }
-    } catch (err: any) {
-      console.error("Failed to reset usage", err.message || err);
     }
   };
 
@@ -3360,7 +3307,6 @@ export default function App() {
         onUpgrade={() => { setShowSettings(false); setState('tier_selection'); }}
         history={history}
         onUpdateAccentColor={updateAccentColor}
-        onResetUsage={handleResetUsage}
       />
 
       {/* Main Content */}
