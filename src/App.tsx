@@ -798,9 +798,10 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
         className={cn("w-full max-w-md p-8 rounded-[2.5rem] border shadow-2xl backdrop-blur-xl relative z-10", cardBg, borderColor)}
       >
         <div className="text-center mb-8">
-          <div className={cn("w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg", `bg-${accentColor}-500`)}>
-            <Brain className="w-10 h-10 text-white" />
-          </div>
+          <Logo 
+            className="mb-4 justify-center"
+            imageClassName="w-16 h-16 rounded-2xl shadow-lg"
+          />
           <h2 className={cn("text-3xl font-bold tracking-tight", textColor)}>
             {step === 'login' ? 'Welcome Back' : 
              step === 'email' ? 'Create Account' : 
@@ -1171,8 +1172,8 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
       {/* Features Grid for Razorpay Verification */}
       <div className="grid md:grid-cols-3 gap-8 mt-20 max-w-6xl w-full">
         <div className={cn("p-8 rounded-3xl border", cardBg, borderColor)}>
-          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-6">
-            <Brain className="w-6 h-6 text-indigo-500" />
+          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-6 overflow-hidden">
+            <Logo imageClassName="w-8 h-8" />
           </div>
           <h3 className={cn("text-xl font-bold mb-3", textColor)}>AI Generation</h3>
           <p className={cn("text-sm leading-relaxed", subTextColor)}>Instantly create high-quality MCQs from your textbooks, notes, or any educational content.</p>
@@ -1238,6 +1239,8 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
     </div>
   );
 };
+
+import { Logo } from './components/Logo';
 
 const DEFAULT_USER = {
   username: 'guest',
@@ -2305,9 +2308,12 @@ export default function App() {
   );
   const renderProcessing = () => (
     <div className="flex flex-col items-center justify-center min-h-[80vh] text-center">
-      <div className="relative">
+      <div className="relative flex items-center justify-center">
         <div className={cn("w-32 h-32 rounded-full border-4 animate-spin", isDarkMode ? "border-indigo-500/20 border-t-indigo-500" : "border-indigo-100 border-t-indigo-500")} />
-        <Brain className={cn("w-12 h-12 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse", `text-${accentColor}-500`)} />
+        <Logo 
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse"
+          imageClassName="w-12 h-12"
+        />
       </div>
       <h2 className={cn("text-2xl font-bold mt-8", isDarkMode ? "text-white" : "text-slate-900")}>
         AI is analyzing your document...
@@ -2335,8 +2341,8 @@ export default function App() {
           )}
         >
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center text-white">
-              <Brain className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center text-white overflow-hidden p-1">
+              <Logo imageClassName="w-full h-full" />
             </div>
             <div>
               <h3 className={cn("font-bold text-lg", isDarkMode ? "text-white" : "text-slate-900")}>AI Content Analysis</h3>
@@ -3252,10 +3258,10 @@ export default function App() {
             className="flex items-center gap-3 cursor-pointer"
             onClick={() => setState('landing')}
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <Brain className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-xl font-bold tracking-tight">QuizNova</span>
+            <Logo 
+              imageClassName="w-10 h-10 rounded-xl shadow-lg"
+              showText={true}
+            />
           </div>
 
           <div className="flex items-center gap-4">
