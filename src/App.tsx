@@ -1308,6 +1308,7 @@ export default function App() {
   const [parsingValue, setParsingValue] = useState('');
   const [parsingStartIndex, setParsingStartIndex] = useState('1');
   const [isForgotLoading, setIsForgotLoading] = useState(false);
+  const [previousState, setPreviousState] = useState<string | null>(null);
 
   const textColor = isDarkMode ? "text-white" : "text-slate-900";
   const subTextColor = isDarkMode ? "text-slate-400" : "text-slate-500";
@@ -1426,7 +1427,12 @@ export default function App() {
         const verifyData = await verifyRes.json();
         if (verifyData.success) {
           setCurrentUser({...currentUser, tier: 'pro'});
-          setState('landing');
+          if (previousState) {
+            setState(previousState as any);
+            setPreviousState(null);
+          } else {
+            setState('landing');
+          }
           alert("Successfully upgraded to Pro!");
         }
         return;
@@ -1453,7 +1459,12 @@ export default function App() {
           const verifyData = await verifyRes.json();
           if (verifyData.success) {
             setCurrentUser({...currentUser, tier: 'pro'});
-            setState('landing');
+            if (previousState) {
+              setState(previousState as any);
+              setPreviousState(null);
+            } else {
+              setState('landing');
+            }
             alert("Successfully upgraded to Pro!");
           } else {
             setError("Payment verification failed.");
@@ -1476,6 +1487,11 @@ export default function App() {
     } finally {
       setIsForgotLoading(false);
     }
+  };
+
+  const navigateToTierSelection = () => {
+    setPreviousState(state);
+    setState('tier_selection');
   };
 
   const checkUsage = async (count: number) => {
@@ -1942,7 +1958,14 @@ export default function App() {
           </ul>
           
           <button 
-            onClick={() => setState('landing')}
+            onClick={() => {
+              if (previousState) {
+                setState(previousState as any);
+                setPreviousState(null);
+              } else {
+                setState('landing');
+              }
+            }}
             className={cn(
               "w-full py-4 rounded-2xl font-bold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border shadow-sm text-sm md:text-base",
               isDarkMode ? "border-slate-700 text-slate-400 hover:bg-slate-800" : "border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -2726,7 +2749,7 @@ export default function App() {
                       <button 
                         onClick={() => {
                           if (currentUser?.tier !== 'pro') {
-                            setState('tier_selection');
+                            navigateToTierSelection();
                             return;
                           }
                           setExplanationType('detailed');
@@ -2966,7 +2989,7 @@ export default function App() {
                     <h3 className="text-2xl font-bold text-white mb-2">Detailed Report Locked</h3>
                     <p className="text-slate-300 max-w-md mb-6">Upgrade to Pro to unlock detailed question-by-question analysis, explanations, and history reports.</p>
                     <button 
-                      onClick={() => setState('tier_selection')}
+                      onClick={navigateToTierSelection}
                       className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20"
                     >
                       Upgrade to Pro
@@ -3169,7 +3192,7 @@ export default function App() {
                       <button 
                         onClick={() => {
                           if (currentUser?.tier !== 'pro') {
-                            setState('tier_selection');
+                            navigateToTierSelection();
                             return;
                           }
                           const report = typeof item.detailed_report === 'string' ? JSON.parse(item.detailed_report) : item.detailed_report;
@@ -3325,7 +3348,7 @@ export default function App() {
           <div className="flex items-center gap-1.5 md:gap-4">
             {currentUser?.tier !== 'pro' && state !== 'auth' && (
               <button
-                onClick={() => setState('tier_selection')}
+                onClick={navigateToTierSelection}
                 className={cn(
                   "flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1 md:py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-[9px] md:text-sm shadow-lg shadow-orange-500/20 hover:scale-[1.05] active:scale-[0.95] transition-all duration-200",
                 )}
@@ -3383,7 +3406,7 @@ export default function App() {
         notifications={notificationsEnabled}
         onToggleNotifications={toggleNotifications}
         exportData={exportHistory}
-        onUpgrade={() => { setShowSettings(false); setState('tier_selection'); }}
+        onUpgrade={() => { setShowSettings(false); navigateToTierSelection(); }}
         history={history}
         onUpdateAccentColor={updateAccentColor}
       />
