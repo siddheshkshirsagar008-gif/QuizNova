@@ -10,8 +10,12 @@ export interface MCQ {
 
 const getApiKey = () => {
   const userKey = localStorage.getItem("user_gemini_api_key");
-  if (userKey && userKey.trim() !== "") return userKey;
-  return process.env.GEMINI_API_KEY || "";
+  if (userKey && userKey.trim() !== "" && userKey !== "undefined") return userKey;
+  
+  const systemKey = process.env.GEMINI_API_KEY;
+  if (systemKey && systemKey.trim() !== "" && systemKey !== "undefined") return systemKey;
+  
+  return "";
 };
 
 export async function generateMCQsFromText(

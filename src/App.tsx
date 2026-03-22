@@ -279,7 +279,7 @@ const SettingsModal = ({
                             type={showKey ? "text" : "password"}
                             value={key}
                             onChange={(e) => setKey(e.target.value)}
-                            placeholder="Enter your API key"
+                            placeholder={(!key && process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "undefined") ? "Using System Default" : "Enter your API key"}
                             className={cn("w-full border rounded-xl pl-11 pr-12 py-3 focus:outline-none focus:ring-2 transition-all text-sm", inputBg, borderColor, textColor, `focus:ring-${accentColor}-500`)}
                           />
                           <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
@@ -290,13 +290,19 @@ const SettingsModal = ({
                             >
                               {showKey ? <EyeOff className="w-4 h-4 text-slate-500" /> : <Eye className="w-4 h-4 text-slate-500" />}
                             </button>
-                            <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded", key ? "text-emerald-500 bg-emerald-500/10" : "text-slate-500 bg-slate-500/10")}>
-                              {key ? "Active" : "Inactive"}
+                            <span className={cn(
+                              "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded", 
+                              key ? "text-emerald-500 bg-emerald-500/10" : 
+                              (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "undefined") ? "text-blue-500 bg-blue-500/10" : "text-slate-500 bg-slate-500/10"
+                            )}>
+                              {key ? "Personal Key" : (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "undefined") ? "System Default" : "Inactive"}
                             </span>
                           </div>
                         </div>
                         <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
-                          Your key is stored securely. For your safety, the full key is hidden. Status: <span className={key ? "text-emerald-500 font-bold" : "text-slate-500"}>{key ? "Connected" : "Disconnected"}</span>
+                          Your key is stored securely. For your safety, the full key is hidden. Status: <span className={cn("font-bold", (key || (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "undefined")) ? "text-emerald-500" : "text-slate-500")}>
+                            {(key || (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "undefined")) ? (key ? "Connected (Personal)" : "Connected (System Default)") : "Disconnected"}
+                          </span>
                         </p>
                         {key && (
                           <p className="text-[10px] text-rose-500 mt-1 leading-relaxed">
