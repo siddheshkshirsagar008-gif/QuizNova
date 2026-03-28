@@ -95,6 +95,31 @@ interface QuizResult {
   created_at?: string;
 }
 
+// --- Helpers ---
+
+const fetchJSON = async (url: string, options: RequestInit = {}) => {
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+  const contentType = res.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    const text = await res.text();
+    console.error(`Unexpected response from ${url}:`, text);
+    throw new Error('Server returned an unexpected response format. Please try again later.');
+  }
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || `Request failed with status ${res.status}`);
+  }
+  return data;
+};
+
 // --- Components ---
 
 const ThemeToggle = ({ isDark, toggle }: { isDark: boolean, toggle: () => void }) => (
@@ -570,13 +595,10 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/login', {
+      const data = await fetchJSON('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       onLogin(data.user);
     } catch (err: any) {
       setError(err.message);
@@ -591,13 +613,10 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
     setError(null);
     setSuccessMessage(null);
     try {
-      const res = await fetch('/api/auth/send-otp', {
+      const data = await fetchJSON('/api/auth/send-otp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       setSuccessMessage(data.message);
       setStep('otp');
     } catch (err: any) {
@@ -611,13 +630,10 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
     setIsResending(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/resend-verification', {
+      const data = await fetchJSON('/api/auth/resend-verification', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       setSuccessMessage(data.message);
     } catch (err: any) {
       setError(err.message);
@@ -631,13 +647,10 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/verify-otp', {
+      const data = await fetchJSON('/api/auth/verify-otp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       
       if (data.needsProfile) {
         setStep('profile');
@@ -664,13 +677,10 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/complete-profile', {
+      const data = await fetchJSON('/api/auth/complete-profile', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, username, fullName, password, otp })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       onLogin(data.user);
     } catch (err: any) {
       setError(err.message);
@@ -685,13 +695,10 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
     setError(null);
     setSuccessMessage(null);
     try {
-      const res = await fetch('/api/auth/forgot-password-send-otp', {
+      const data = await fetchJSON('/api/auth/forgot-password-send-otp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       setSuccessMessage(data.message);
       setStep('forgot_password_otp');
     } catch (err: any) {
@@ -706,13 +713,10 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/forgot-password-verify-otp', {
+      const data = await fetchJSON('/api/auth/forgot-password-verify-otp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       setStep('reset_password');
       setSuccessMessage(data.message);
     } catch (err: any) {
@@ -731,13 +735,10 @@ const AuthScreen = ({ onLogin, isDark, accentColor }: { onLogin: (user: any) => 
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/reset-password', {
+      const data = await fetchJSON('/api/auth/reset-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp, newPassword: password })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       setSuccessMessage("Password reset successfully. Please login.");
       setStep('login');
       setPassword('');
@@ -1407,24 +1408,20 @@ export default function App() {
     if (!currentUser) return;
     setIsForgotLoading(true);
     try {
-      const res = await fetch('/api/create-razorpay-order', {
+      const order = await fetchJSON('/api/create-razorpay-order', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: 1499 })
       });
-      const order = await res.json();
       
       if (order.isMock) {
         // Handle mock payment
-        const verifyRes = await fetch('/api/verify-razorpay-payment', {
+        const verifyData = await fetchJSON('/api/verify-razorpay-payment', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             isMock: true,
             username: currentUser.username
           })
         });
-        const verifyData = await verifyRes.json();
         if (verifyData.success) {
           setCurrentUser({...currentUser, tier: 'pro'});
           if (previousState) {
@@ -1497,16 +1494,14 @@ export default function App() {
   const checkUsage = async (count: number) => {
     if (!currentUser) return 0;
     try {
-      const res = await fetch('/api/usage/check', {
+      const data = await fetchJSON('/api/usage/check', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           username: currentUser.username, 
           count,
           clientDate: getLocalDateString()
         })
       });
-      const data = await res.json();
       if (data.success) {
         const updatedUser = { ...currentUser, daily_usage: data.newUsage };
         setCurrentUser(updatedUser);
@@ -1625,13 +1620,7 @@ export default function App() {
       const url = currentUser?.username 
         ? `/api/results?username=${encodeURIComponent(currentUser.username)}`
         : '/api/results';
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Received non-JSON response from server');
-      }
-      const data = await res.json();
+      const data = await fetchJSON(url);
       if (Array.isArray(data)) {
         setHistory(data);
       } else {
@@ -1874,18 +1863,14 @@ export default function App() {
 
       // Save to DB
       console.log("Saving quiz result to DB:", result);
-      const res = await fetch('/api/results', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(result)
-      });
-      
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
-        console.error("Failed to save result to server:", res.status, errorData);
-      } else {
-        const data = await res.json();
+      try {
+        const data = await fetchJSON('/api/results', {
+          method: 'POST',
+          body: JSON.stringify(result)
+        });
         console.log("Successfully saved result with ID:", data.id);
+      } catch (err: any) {
+        console.error("Failed to save result to server:", err.message || err);
       }
       
       // Refresh history to update dashboard stats

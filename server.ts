@@ -388,21 +388,32 @@ async function startServer() {
     });
 
     app.post("/api/auth/login", async (req, res) => {
-      const { username, password } = req.body;
-      const supabase = getSupabase();
-
-      if (!supabase) {
-        return res.status(500).json({ error: "Database not configured" });
-      }
-
       try {
+        const { username, password } = req.body;
+        console.log(`Login attempt for username: ${username}`);
+        
+        if (!username || !password) {
+          return res.status(400).json({ error: "Username and password are required" });
+        }
+
+        const supabase = getSupabase();
+        if (!supabase) {
+          console.error("Supabase not configured");
+          return res.status(500).json({ error: "Database not configured" });
+        }
+
         const { data: user, error } = await supabase
           .from("users")
           .select("*")
           .eq("username", username)
           .maybeSingle();
 
-        if (error || !user) {
+        if (error) {
+          console.error("Supabase error during login:", error);
+          return res.status(500).json({ error: "Database error during login" });
+        }
+
+        if (!user) {
           return res.status(401).json({ error: "Invalid username or password" });
         }
 
@@ -415,9 +426,9 @@ async function startServer() {
         // Remove password from response
         const { password: _, ...userWithoutPassword } = user;
         res.json({ user: userWithoutPassword });
-      } catch (error: any) {
-        console.error("Login error:", error);
-        res.status(500).json({ error: error.message });
+      } catch (err: any) {
+        console.error("Login error:", err);
+        res.status(500).json({ error: "Internal server error during login", details: err.message });
       }
     });
 
@@ -983,6 +994,11 @@ async function startServer() {
       }
     });
 
+
+    // API 404 handler
+    app.all("/api/*", (req, res) => {
+      res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
+    });
 
     // Global Error Handler
     app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
